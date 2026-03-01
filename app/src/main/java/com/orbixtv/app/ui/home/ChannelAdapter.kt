@@ -48,15 +48,38 @@ class ChannelAdapter(
                 binding.ivLogo.setImageResource(R.drawable.ic_tv_placeholder)
             }
 
-            // Stream type badge
             val streamType = when {
-                channel.url.contains(".mpd") -> "DASH"
-                channel.url.contains(".m3u8") -> "HLS"
+                channel.url.contains(".mpd", ignoreCase = true) -> "DASH"
+                channel.url.contains(".m3u8", ignoreCase = true) -> "HLS"
                 else -> "LIVE"
             }
             binding.tvStreamType.text = streamType
 
             binding.root.setOnClickListener { onChannelClick(channel) }
+
+            // D-pad / TV focus: scale up saat fokus, kembali normal saat tidak fokus
+            binding.root.setOnFocusChangeListener { _, hasFocus ->
+                val scale = if (hasFocus) 1.05f else 1f
+                binding.root.animate()
+                    .scaleX(scale)
+                    .scaleY(scale)
+                    .setDuration(150)
+                    .start()
+
+                // Ganti background CardView saat fokus
+                val cardView = binding.root
+                if (hasFocus) {
+                    cardView.setCardBackgroundColor(
+                        cardView.context.getColor(R.color.bg_surface)
+                    )
+                    cardView.cardElevation = 8f
+                } else {
+                    cardView.setCardBackgroundColor(
+                        cardView.context.getColor(R.color.bg_card)
+                    )
+                    cardView.cardElevation = 0f
+                }
+            }
         }
     }
 }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dimensi default untuk phone -->
+<resources>
+    <dimen name="text_title">22sp</dimen>
+    <dimen name="text_channel_name">14sp</dimen>
+    <dimen name="text_group_name">12sp</dimen>
+    <dimen name="text_badge">10sp</dimen>
+    <dimen name="text_secondary">12sp</dimen>
+    <dimen name="text_hint">12sp</dimen>
+
+    <dimen name="channel_logo_size">52dp</dimen>
+    <dimen name="channel_item_padding_h">12dp</dimen>
+    <dimen name="channel_item_padding_v">12dp</dimen>
+    <dimen name="channel_item_margin_h">12dp</dimen>
+    <dimen name="channel_item_margin_v">4dp</dimen>
+
+    <dimen name="nav_icon_size">24dp</dimen>
+
+    <dimen name="content_padding">16dp</dimen>
+    <dimen name="section_margin">8dp</dimen>
+</resources>

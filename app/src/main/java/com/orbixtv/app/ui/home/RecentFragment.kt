@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentRecentBinding
@@ -34,16 +35,21 @@ class RecentFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         adapter = ChannelAdapter { channel -> openPlayer(channel) }
+
+        val isLargeScreen = resources.displayMetrics.widthPixels /
+                resources.displayMetrics.density >= 720
+
         binding.rvRecent.apply {
-            layoutManager = LinearLayoutManager(requireContext())
+            layoutManager = if (isLargeScreen)
+                GridLayoutManager(requireContext(), 3)
+            else
+                LinearLayoutManager(requireContext())
             adapter = this@RecentFragment.adapter
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
-                if (!loading) {
-                    refreshRecent()
-                }
+                if (!loading) refreshRecent()
             }
         }
     }
@@ -62,7 +68,7 @@ class RecentFragment : Fragment() {
 
     private fun openPlayer(channel: Channel) {
         viewModel.onChannelWatched(channel.id)
-        val intent = Intent(requireContext(), PlayerActivity::class.java).apply {
+        startActivity(Intent(requireContext(), PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
             putExtra(PlayerActivity.EXTRA_CHANNEL_URL, channel.url)
             putExtra(PlayerActivity.EXTRA_CHANNEL_LOGO, channel.logoUrl)
@@ -71,8 +77,7 @@ class RecentFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_LICENSE_KEY, channel.licenseKey)
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
-        }
-        startActivity(intent)
+        })
     }
 
     override fun onDestroyView() {

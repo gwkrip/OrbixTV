@@ -8,4 +8,10 @@
     <string name="error_stream">Gagal memuat stream</string>
     <string name="retry">Coba Lagi</string>
     <string name="live">LIVE</string>
+    <string name="playlist_settings">Pengaturan Playlist</string>
+    <string name="sleep_timer">Sleep Timer</string>
+    <string name="picture_in_picture">Picture in Picture</string>
+    <string name="playlist_url_hint">https://example.com/playlist.m3u</string>
+    <string name="apply_playlist">Terapkan Playlist</string>
+    <string name="reset_playlist">Reset ke Playlist Bawaan</string>
 </resources>

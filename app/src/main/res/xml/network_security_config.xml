@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ✅ PATCH: Network Security Config menggantikan usesCleartextTraffic global yang terlalu permisif -->
+<!-- HTTP diizinkan hanya untuk playlist M3U dan stream IPTV yang memang tidak support HTTPS -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <!-- Izinkan HTTP untuk stream IPTV yang banyak menggunakan plain HTTP -->
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

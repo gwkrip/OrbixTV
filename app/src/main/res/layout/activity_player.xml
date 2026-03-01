@@ -41,7 +41,7 @@
             android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Back" />
+            android:contentDescription="Kembali" />
 
         <ImageView
             android:id="@+id/iv_channel_logo"
@@ -64,6 +64,44 @@
             android:maxLines="1"
             android:ellipsize="end" />
 
+        <!-- Sleep timer badge + button -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp">
+
+            <ImageButton
+                android:id="@+id/btn_sleep_timer"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_sleep_timer"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/white"
+                android:contentDescription="Sleep Timer" />
+
+            <TextView
+                android:id="@+id/tv_sleep_timer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:background="@color/accent_blue"
+                android:textColor="@color/white"
+                android:textSize="8sp"
+                android:paddingHorizontal="3dp"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- PiP button -->
+        <ImageButton
+            android:id="@+id/btn_pip"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_pip"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="@color/white"
+            android:contentDescription="Picture in Picture"
+            android:layout_marginEnd="4dp" />
+
         <ImageButton
             android:id="@+id/btn_favorite"
             android:layout_width="40dp"
@@ -71,7 +109,7 @@
             android:src="@drawable/ic_favorite_border"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Favorite" />
+            android:contentDescription="Favorit" />
 
     </LinearLayout>
 

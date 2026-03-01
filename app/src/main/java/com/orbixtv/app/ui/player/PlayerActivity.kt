@@ -1,11 +1,17 @@
 package com.orbixtv.app.ui.player
 
+import android.app.PictureInPictureParams
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.CountDownTimer
 import android.util.Log
+import android.util.Rational
 import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -16,6 +22,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -25,6 +32,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import com.bumptech.glide.Glide
 import com.orbixtv.app.R
+import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
 
@@ -54,7 +62,11 @@ class PlayerActivity : AppCompatActivity() {
     private var licenseType = ""
     private var licenseKey  = ""
     private var referer     = ""
-    private var channelId   = -1
+    private var channelId   = ""
+
+    // Sleep timer
+    private var sleepTimer: CountDownTimer? = null
+    private var sleepTimerMinutesLeft = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,7 +85,7 @@ class PlayerActivity : AppCompatActivity() {
         licenseType = intent.getStringExtra(EXTRA_LICENSE_TYPE) ?: ""
         licenseKey  = intent.getStringExtra(EXTRA_LICENSE_KEY)  ?: ""
         referer     = intent.getStringExtra(EXTRA_REFERER)      ?: ""
-        channelId   = intent.getIntExtra(EXTRA_CHANNEL_ID, -1)
+        channelId   = intent.getStringExtra(EXTRA_CHANNEL_ID)   ?: ""
 
         setupUI()
         setupPlayer()
@@ -93,22 +105,36 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
 
         binding.btnFavorite.setOnClickListener {
-            if (channelId != -1) {
+            if (channelId.isNotEmpty()) {
                 viewModel.toggleFavorite(channelId)
                 updateFavoriteIcon()
             }
+        }
+
+        // ✅ FITUR: Tombol Sleep Timer
+        binding.btnSleepTimer.setOnClickListener {
+            showSleepTimerDialog()
+        }
+
+        // ✅ FITUR: Tombol PiP
+        binding.btnPip.setOnClickListener {
+            enterPipMode()
         }
 
         updateFavoriteIcon()
     }
 
     private fun updateFavoriteIcon() {
-        if (channelId != -1 && viewModel.isFavorite(channelId)) {
+        if (channelId.isNotEmpty() && viewModel.isFavorite(channelId)) {
             binding.btnFavorite.setImageResource(R.drawable.ic_favorite_filled)
         } else {
             binding.btnFavorite.setImageResource(R.drawable.ic_favorite_border)
         }
     }
+
+    // ========================
+    // Player Setup
+    // ========================
 
     private fun setupPlayer() {
         if (channelUrl.isEmpty()) {
@@ -117,6 +143,7 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         showLoading(true)
+        showError(null)
 
         val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
             setUserAgent(userAgent.ifEmpty {
@@ -142,16 +169,20 @@ class PlayerActivity : AppCompatActivity() {
 
         val mediaSource = buildMediaSource(channelUrl, httpDataSourceFactory)
 
+        // ✅ PATCH: Pastikan player sebelumnya sudah null sebelum buat baru
+        player?.release()
+        player = null
+
         player = ExoPlayer.Builder(this).build().also { exo ->
             binding.playerView.player = exo
 
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
-                        Player.STATE_READY    -> { showLoading(false); showError(null) }
+                        Player.STATE_READY     -> { showLoading(false); showError(null) }
                         Player.STATE_BUFFERING -> showLoading(true)
-                        Player.STATE_ENDED    -> showError("Stream berakhir")
-                        Player.STATE_IDLE     -> {}
+                        Player.STATE_ENDED     -> showError("Stream berakhir")
+                        Player.STATE_IDLE      -> {}
                     }
                 }
 
@@ -168,20 +199,21 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // ✅ PATCH: Deteksi stream lebih akurat via M3uParser.detectStreamType()
     private fun buildMediaSource(
         url: String,
         dataSourceFactory: DefaultHttpDataSource.Factory
     ): MediaSource {
         val uri = Uri.parse(url)
-        return when {
-            url.contains(".mpd") || url.contains("manifest.mpd") -> {
+        return when (M3uParser.detectStreamType(url)) {
+            M3uParser.StreamType.DASH -> {
                 if (licenseType.isNotEmpty() && licenseKey.isNotEmpty()) {
                     buildDashWithClearKey(uri, dataSourceFactory)
                 } else {
                     DashMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
                 }
             }
-            url.contains(".m3u8") || url.contains("playlist") || url.contains("chunklist") -> {
+            M3uParser.StreamType.HLS -> {
                 HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
             }
             else -> {
@@ -239,6 +271,97 @@ class PlayerActivity : AppCompatActivity() {
         )
     }
 
+    // ========================
+    // ✅ FITUR: Picture-in-Picture
+    // ========================
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        } else {
+            Toast.makeText(this, "PiP tidak didukung di Android ini", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Auto-enter PiP saat user menekan tombol Home
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player?.isPlaying == true) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        // Sembunyikan UI overlay saat PiP aktif
+        val uiVisibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
+        binding.topBar.visibility = uiVisibility
+    }
+
+    // ========================
+    // ✅ FITUR: Sleep Timer
+    // ========================
+
+    private fun showSleepTimerDialog() {
+        val options = arrayOf("15 menit", "30 menit", "45 menit", "60 menit", "90 menit", "Matikan Timer")
+        val minutes = intArrayOf(15, 30, 45, 60, 90, 0)
+
+        AlertDialog.Builder(this)
+            .setTitle("⏱️  Sleep Timer")
+            .setItems(options) { _, which ->
+                val selected = minutes[which]
+                if (selected == 0) {
+                    cancelSleepTimer()
+                } else {
+                    startSleepTimer(selected)
+                }
+            }
+            .show()
+    }
+
+    private fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        sleepTimerMinutesLeft = minutes
+        updateSleepTimerButton(minutes)
+
+        sleepTimer = object : CountDownTimer(minutes * 60_000L, 60_000L) {
+            override fun onTick(millisUntilFinished: Long) {
+                sleepTimerMinutesLeft = (millisUntilFinished / 60_000).toInt()
+                updateSleepTimerButton(sleepTimerMinutesLeft)
+            }
+
+            override fun onFinish() {
+                Toast.makeText(this@PlayerActivity, "Sleep timer selesai", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }.start()
+
+        Toast.makeText(this, "Sleep timer: $minutes menit", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun cancelSleepTimer() {
+        sleepTimer?.cancel()
+        sleepTimer = null
+        sleepTimerMinutesLeft = 0
+        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer)
+    }
+
+    private fun updateSleepTimerButton(minutesLeft: Int) {
+        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer_active)
+        binding.tvSleepTimer.text = "${minutesLeft}m"
+        binding.tvSleepTimer.visibility = View.VISIBLE
+    }
+
+    // ========================
+    // UI helpers
+    // ========================
+
     private fun showLoading(show: Boolean) {
         binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
     }
@@ -249,8 +372,6 @@ class PlayerActivity : AppCompatActivity() {
             binding.tvError.text = message
             binding.btnRetry.setOnClickListener {
                 binding.errorLayout.visibility = View.GONE
-                player?.release()
-                player = null
                 setupPlayer()
             }
         } else {
@@ -273,11 +394,14 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        // Jangan pause saat PiP aktif
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) return
         player?.pause()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        sleepTimer?.cancel()
         player?.release()
         player = null
     }

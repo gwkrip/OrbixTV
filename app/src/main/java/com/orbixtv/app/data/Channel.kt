@@ -1,7 +1,7 @@
 package com.orbixtv.app.data
 
 data class Channel(
-    val id: Int,
+    val id: String,          // Stable ID: hash dari name+url, tidak bergeser saat playlist update
     val name: String,
     val url: String,
     val logoUrl: String,

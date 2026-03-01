@@ -12,10 +12,14 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    val repository = ChannelRepository(application)
+    // ✅ PATCH: repository kini private — Fragment tidak bisa bypass ViewModel
+    private val repository = ChannelRepository(application)
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError: StateFlow<String?> = _loadError
 
     private val _searchResults = MutableStateFlow<List<Channel>>(emptyList())
     val searchResults: StateFlow<List<Channel>> = _searchResults
@@ -23,28 +27,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val groups: StateFlow<List<ChannelGroup>> = repository.groups
     val favorites: StateFlow<List<Channel>> = repository.favorites
 
+    // Sleep timer state
+    private val _sleepTimerMinutes = MutableStateFlow(0)
+    val sleepTimerMinutes: StateFlow<Int> = _sleepTimerMinutes
+
     init {
         loadPlaylist()
     }
 
-    private fun loadPlaylist() {
+    fun loadPlaylist() {
         viewModelScope.launch {
             _isLoading.value = true
-            repository.loadPlaylist()
+            _loadError.value = null
+            val error = repository.loadPlaylist()
+            _loadError.value = error  // null = sukses, string = ada pesan (tapi tetap fallback ke assets)
             _isLoading.value = false
         }
     }
+
+    // --- Playlist URL management ---
+
+    fun getPlaylistUrl(): String = repository.getPlaylistUrl()
+
+    fun setPlaylistUrl(url: String) {
+        repository.savePlaylistUrl(url)
+        loadPlaylist()
+    }
+
+    fun resetToDefaultPlaylist() {
+        repository.clearPlaylistUrl()
+        loadPlaylist()
+    }
+
+    // --- Search ---
 
     fun search(query: String) {
         _searchResults.value = if (query.isBlank()) emptyList()
         else repository.searchChannels(query)
     }
 
-    fun toggleFavorite(channelId: Int) {
+    // --- Favorites (String ID) ---
+
+    fun toggleFavorite(channelId: String) {
         repository.toggleFavorite(channelId)
     }
 
-    fun isFavorite(channelId: Int): Boolean = repository.isFavorite(channelId)
+    fun isFavorite(channelId: String): Boolean = repository.isFavorite(channelId)
+
+    // --- Recent / History ---
 
     fun getRecentChannels(): List<Channel> {
         val ids = repository.getLastWatched()
@@ -52,7 +82,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return ids.mapNotNull { id -> allChannels.firstOrNull { it.id == id } }
     }
 
-    fun onChannelWatched(channelId: Int) {
+    fun onChannelWatched(channelId: String) {
         repository.addToLastWatched(channelId)
+    }
+
+    fun clearHistory() {
+        repository.clearHistory()
+    }
+
+    // --- Sleep Timer ---
+
+    fun setSleepTimer(minutes: Int) {
+        _sleepTimerMinutes.value = minutes
+        repository.saveSleepTimer(minutes)
+    }
+
+    fun clearSleepTimer() {
+        _sleepTimerMinutes.value = 0
     }
 }

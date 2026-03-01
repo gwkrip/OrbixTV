@@ -17,8 +17,46 @@ class ChannelRepository(private val context: Context) {
     private val _favorites = MutableStateFlow<List<Channel>>(emptyList())
     val favorites: StateFlow<List<Channel>> = _favorites
 
-    suspend fun loadPlaylist() {
-        val groups = M3uParser.parse(context)
+    // --- Playlist URL management ---
+
+    fun getPlaylistUrl(): String = prefs.getString("playlist_url", "") ?: ""
+
+    fun savePlaylistUrl(url: String) {
+        prefs.edit().putString("playlist_url", url.trim()).apply()
+    }
+
+    fun clearPlaylistUrl() {
+        prefs.edit().remove("playlist_url").apply()
+    }
+
+    // --- Load playlist ---
+
+    /**
+     * Load dari URL eksternal jika tersedia, fallback ke assets.
+     * Return null jika sukses, atau pesan error jika gagal.
+     */
+    suspend fun loadPlaylist(): String? {
+        val url = getPlaylistUrl()
+        return if (url.isNotEmpty()) {
+            val result = M3uParser.parseFromUrl(url)
+            if (result.isSuccess) {
+                val groups = result.getOrNull() ?: emptyList()
+                _groups.value = groups
+                loadFavorites(groups.flatMap { it.channels })
+                null
+            } else {
+                // Gagal dari URL → fallback ke assets
+                loadFromAssets()
+                "Gagal memuat dari URL: ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
+            }
+        } else {
+            loadFromAssets()
+            null
+        }
+    }
+
+    private suspend fun loadFromAssets() {
+        val groups = M3uParser.parseFromAssets(context)
         _groups.value = groups
         loadFavorites(groups.flatMap { it.channels })
     }
@@ -32,46 +70,59 @@ class ChannelRepository(private val context: Context) {
         }
     }
 
-    fun toggleFavorite(channelId: Int) {
+    // --- Favorites (menggunakan String ID) ---
+
+    fun toggleFavorite(channelId: String) {
         val favIds = getFavoriteIds().toMutableSet()
-        if (favIds.contains(channelId.toString())) {
-            favIds.remove(channelId.toString())
+        if (favIds.contains(channelId)) {
+            favIds.remove(channelId)
         } else {
-            favIds.add(channelId.toString())
+            favIds.add(channelId)
         }
         prefs.edit().putStringSet("favorites", favIds).apply()
         loadFavorites(getAllChannels())
     }
 
-    fun isFavorite(channelId: Int): Boolean {
-        return getFavoriteIds().contains(channelId.toString())
-    }
+    fun isFavorite(channelId: String): Boolean = getFavoriteIds().contains(channelId)
 
-    private fun getFavoriteIds(): Set<String> {
-        return prefs.getStringSet("favorites", emptySet()) ?: emptySet()
-    }
+    private fun getFavoriteIds(): Set<String> =
+        prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
     private fun loadFavorites(allChannels: List<Channel>) {
         val favIds = getFavoriteIds()
         _favorites.value = allChannels
-            .filter { favIds.contains(it.id.toString()) }
+            .filter { favIds.contains(it.id) }
             .map { it.copy(isFavorite = true) }
     }
 
     fun enrichWithFavorite(channel: Channel): Channel =
         channel.copy(isFavorite = isFavorite(channel.id))
 
-    fun getLastWatched(): List<Int> {
+    // --- Recently watched (menggunakan String ID) ---
+
+    fun getLastWatched(): List<String> {
         val raw = prefs.getString("last_watched", "") ?: ""
         return if (raw.isEmpty()) emptyList()
-        else raw.split(",").mapNotNull { it.trim().toIntOrNull() }
+        else raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    fun addToLastWatched(channelId: Int) {
+    fun addToLastWatched(channelId: String) {
         val current = getLastWatched().toMutableList()
         current.remove(channelId)
         current.add(0, channelId)
-        val limited = current.take(20)
+        val limited = current.take(30)  // Naik dari 20 → 30
         prefs.edit().putString("last_watched", limited.joinToString(",")).apply()
     }
+
+    fun clearHistory() {
+        prefs.edit().remove("last_watched").apply()
+    }
+
+    // --- Sleep timer ---
+
+    fun saveSleepTimer(minutes: Int) {
+        prefs.edit().putInt("sleep_timer_minutes", minutes).apply()
+    }
+
+    fun getSleepTimer(): Int = prefs.getInt("sleep_timer_minutes", 0)
 }
