@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background colors -->
+    <color name="bg_dark">#0F0F13</color>
+    <color name="bg_surface">#1A1A22</color>
+    <color name="bg_card">#222230</color>
+    <color name="bg_logo">#2A2A3A</color>
+
+    <!-- Accent -->
+    <color name="accent_blue">#4D9EFF</color>
+    <color name="accent_blue_dark">#2D7DD9</color>
+    <color name="accent_red">#FF4444</color>
+
+    <!-- Text -->
+    <color name="white">#FFFFFF</color>
+    <color name="text_secondary">#99AABB</color>
+    <color name="text_hint">#556677</color>
+
+    <!-- Nav -->
+    <color name="nav_selected">#4D9EFF</color>
+    <color name="nav_unselected">#556677</color>
+
+    <!-- System -->
+    <color name="colorPrimary">#4D9EFF</color>
+    <color name="colorPrimaryDark">#0F0F13</color>
+    <color name="colorAccent">#4D9EFF</color>
+</resources>

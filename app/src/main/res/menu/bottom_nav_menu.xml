@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/homeFragment"
+        android:icon="@drawable/ic_home"
+        android:title="Beranda" />
+    <item
+        android:id="@+id/favoritesFragment"
+        android:icon="@drawable/ic_favorite_border"
+        android:title="Favorit" />
+    <item
+        android:id="@+id/recentFragment"
+        android:icon="@drawable/ic_history"
+        android:title="Terakhir" />
+</menu>

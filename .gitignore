@@ -1,0 +1,38 @@
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+
+# Gradle
+.gradle/
+build/
+local.properties
+gradle.properties.local
+
+# Keystore — NEVER commit these!
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# NDK
+obj/
+.externalNativeBuild/
+.cxx/
+
+# Navigation
+app/src/main/res/navigation/nav_graph.xml.bak
