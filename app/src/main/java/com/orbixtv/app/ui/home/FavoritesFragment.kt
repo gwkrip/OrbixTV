@@ -71,7 +71,7 @@ class FavoritesFragment : Fragment() {
 
     // ⑥ Search dalam daftar favorit
     private fun setupSearch() {
-        binding.searchViewFavorites.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+        binding.searchViewFavorites?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?) = true
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText?.trim() ?: ""
@@ -90,7 +90,7 @@ class FavoritesFragment : Fragment() {
 
     // ⑪ Export & Import favorit
     private fun setupExportImport() {
-        binding.btnExport.setOnClickListener {
+        binding.btnExport?.setOnClickListener {
             viewModel.exportFavorites { file ->
                 if (file != null) {
                     showExportSuccess(file)
@@ -100,7 +100,7 @@ class FavoritesFragment : Fragment() {
             }
         }
 
-        binding.btnImport.setOnClickListener {
+        binding.btnImport?.setOnClickListener {
             importLauncher.launch("application/json")
         }
     }
@@ -159,7 +159,7 @@ class FavoritesFragment : Fragment() {
                 binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
 
                 // Tampilkan search bar hanya kalau ada data
-                binding.searchViewFavorites.visibility =
+                binding.searchViewFavorites?.visibility =
                     if (favs.size > 5) View.VISIBLE else View.GONE
 
                 val isEmpty = favs.isEmpty()

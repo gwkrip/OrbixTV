@@ -7,11 +7,13 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.LifecycleOwner
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.ChannelGroup
 import com.orbixtv.app.databinding.ItemGroupBinding
 
 class GroupAdapter(
+    private val lifecycleOwner: LifecycleOwner,
     private val onChannelClick: (Channel) -> Unit
 ) : ListAdapter<ChannelGroup, GroupAdapter.GroupViewHolder>(DiffCallback) {
 
@@ -40,7 +42,7 @@ class GroupAdapter(
         private val binding: ItemGroupBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        private val channelAdapter = ChannelAdapter(onChannelClick)
+        private val channelAdapter = ChannelAdapter(lifecycleOwner, onChannelClick)
 
         init {
             binding.rvChannels.apply {

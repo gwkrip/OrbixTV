@@ -67,7 +67,7 @@ class HomeFragment : Fragment() {
     // ========================
 
     private fun setupPhoneAdapters() {
-        groupAdapter = GroupAdapter { channel -> openPlayer(channel) }
+        groupAdapter = GroupAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
         binding.rvGroups.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = groupAdapter

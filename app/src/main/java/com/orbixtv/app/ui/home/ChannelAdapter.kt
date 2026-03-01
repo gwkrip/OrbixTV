@@ -110,7 +110,7 @@ class ChannelAdapter(
                 -1 -> COLOR_OFFLINE
                 else -> COLOR_UNKNOWN
             }
-            binding.vStatusDot.setBackgroundColor(color)
+            binding.vStatusDot?.setBackgroundColor(color)
         }
 
         private fun getPingCache(channelId: String): Int {
