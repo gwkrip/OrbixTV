@@ -28,23 +28,23 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      # setup-gradle pins Gradle to the version in gradle-wrapper.properties
+      # and prevents the runner's system Gradle from being used
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper   # use version declared in wrapper, never system Gradle
+          cache-read-only: false
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
 
       - name: Grant Gradle wrapper execute permission
         run: chmod +x gradlew
 
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
       - name: Run lint
-        run: ./gradlew lint --no-daemon
+        run: ./gradlew lint --no-daemon --stacktrace
 
       - name: Upload lint report
         if: always()
@@ -71,20 +71,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: true   # lint job already populated cache
 
       - name: Grant Gradle wrapper execute permission
         run: chmod +x gradlew
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
@@ -113,20 +108,15 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: true
 
       - name: Grant Gradle wrapper execute permission
         run: chmod +x gradlew
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
 
       - name: Run unit tests
         run: ./gradlew test --no-daemon

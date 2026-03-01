@@ -43,9 +43,18 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      # 3. Grant execute permission to gradlew
+      # 3. Setup Gradle — pins to wrapper version, handles caching
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      # 4. Validate wrapper checksum (security: prevents tampered wrapper attacks)
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      # 5. Grant execute permission to gradlew
       - name: Grant Gradle wrapper execute permission
         run: chmod +x gradlew
 
@@ -70,18 +79,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version_name }}"
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" app/build.gradle
 
-      # 6. Cache Gradle dependencies
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      # 7. Decode keystore from repository secret
+      # 6. Decode keystore from repository secret
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/keystore.jks
