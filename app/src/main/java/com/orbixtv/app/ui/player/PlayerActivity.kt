@@ -2,13 +2,16 @@ package com.orbixtv.app.ui.player
 
 import android.app.PictureInPictureParams
 import android.content.res.Configuration
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
 import android.util.Log
 import android.util.Rational
+import android.view.GestureDetector
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -81,6 +84,28 @@ class PlayerActivity : AppCompatActivity() {
     private var allChannels: List<Channel> = emptyList()
     private var currentChannelIndex = -1
 
+    // ① Auto-retry
+    private var retryCount = 0
+    private val MAX_AUTO_RETRY = 2
+    private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    // ⑨ Pre-buffer channel berikutnya/sebelumnya untuk zapping cepat
+    private var preBufferPlayer: ExoPlayer? = null
+    private var preBufferIndex: Int = -1
+
+    // ④ Lock orientasi
+    private var isOrientationLocked = false
+
+    // ⑤ Gesture — volume & brightness
+    private lateinit var gestureDetector: GestureDetector
+    private var audioManager: AudioManager? = null
+    private var initialVolume = 0
+    private var maxVolume = 0
+    private var initialBrightness = 0f
+    private var gestureStartY = 0f
+    private var gestureStartX = 0f
+    private var isVolumeGesture = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -117,6 +142,7 @@ class PlayerActivity : AppCompatActivity() {
 
         setupUI()
         setupPlayer()
+        setupGestureDetector()  // ⑤
     }
 
     private fun setupUI() {
@@ -147,6 +173,9 @@ class PlayerActivity : AppCompatActivity() {
             ?.setOnClickListener { navigateChannel(-1) }
         binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_next_channel)
             ?.setOnClickListener { navigateChannel(+1) }
+
+        // ④ Lock orientasi
+        binding.btnLockOrientation?.setOnClickListener { toggleOrientationLock() }
 
         updateFavoriteIcon()
         updateLiveBadge()
@@ -213,7 +242,14 @@ class PlayerActivity : AppCompatActivity() {
             newExo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
-                        Player.STATE_READY     -> { showLoading(false); showError(null) }
+                        Player.STATE_READY -> {
+                            showLoading(false)
+                            showError(null)
+                            retryCount = 0
+                            // ⑨ Pre-buffer channel berikutnya setelah stream utama siap
+                            preBufferHandler.removeCallbacksAndMessages(null)
+                            preBufferHandler.postDelayed({ startPreBuffer() }, 1_500)
+                        }
                         Player.STATE_BUFFERING -> showLoading(true)
                         Player.STATE_ENDED     -> showError("Stream berakhir")
                         Player.STATE_IDLE      -> {}
@@ -223,7 +259,24 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onPlayerError(error: PlaybackException) {
                     Log.e(TAG, "Player error: ${error.message}")
                     showLoading(false)
-                    showError("Gagal memuat: ${error.localizedMessage ?: "Error tidak diketahui"}")
+                    // ① Auto-retry sebelum tampilkan error ke user
+                    if (retryCount < MAX_AUTO_RETRY) {
+                        retryCount++
+                        Log.d(TAG, "Auto-retry $retryCount/$MAX_AUTO_RETRY")
+                        retryHandler.postDelayed({
+                            // Gunakan player (field) bukan exo (closure) — player bisa diganti
+                            // oleh consumePreBuffer() setelah retry dijadwal
+                            if (!isFinishing) {
+                                player?.stop()
+                                player?.prepare()
+                                player?.play()
+                                showLoading(true)
+                            }
+                        }, 2_000L * retryCount)
+                    } else {
+                        retryCount = 0
+                        showError("Gagal memuat: ${error.localizedMessage ?: "Error tidak diketahui"}")
+                    }
                 }
             })
         }
@@ -424,8 +477,18 @@ class PlayerActivity : AppCompatActivity() {
         }
         updateFavoriteIcon()
 
-        // Muat stream baru
-        setupPlayer()
+        // ⑨ Gunakan pre-buffer jika tersedia untuk channel ini → zapping instan
+        val buffered = consumePreBuffer(nextIndex)
+        if (buffered != null) {
+            Log.d(TAG, "Using pre-buffered player for ${nextChannel.name}")
+            player?.release()
+            player = buffered
+            binding.playerView.player = buffered
+            buffered.playWhenReady = true
+            showLoading(false)
+        } else {
+            setupPlayer()
+        }
         showTopBarTemporarily()
         showChannelPosition()  // #11: tampilkan posisi "3 / 120"
         showToastBrief("📺 $channelName")
@@ -442,6 +505,77 @@ class PlayerActivity : AppCompatActivity() {
         binding.tvChannelPosition.visibility = View.VISIBLE
         hidePositionHandler.removeCallbacksAndMessages(null)
         hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
+
+        // ⑨ Mulai pre-buffer channel berikutnya setelah 1 detik player aktif
+        preBufferHandler.removeCallbacksAndMessages(null)
+        preBufferHandler.postDelayed({ startPreBuffer() }, 1_000)
+    }
+
+    // ========================
+    // ⑨ Pre-buffer channel berikutnya
+    // ========================
+
+    private val preBufferHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /** Siapkan ExoPlayer kedua untuk channel berikutnya di background */
+    private fun startPreBuffer() {
+        if (allChannels.isEmpty()) return
+        val nextIndex = (currentChannelIndex + 1) % allChannels.size
+        if (nextIndex == preBufferIndex) return  // sudah di-buffer
+
+        // Bersihkan pre-buffer lama
+        releasePreBuffer()
+
+        val nextChannel = allChannels[nextIndex]
+        preBufferIndex = nextIndex
+
+        try {
+            val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory().apply {
+                setConnectTimeoutMs(10_000)
+                setReadTimeoutMs(10_000)
+                if (nextChannel.userAgent.isNotEmpty()) setUserAgent(nextChannel.userAgent)
+            }
+            val source = when (M3uParser.detectStreamType(nextChannel.url)) {
+                M3uParser.StreamType.DASH ->
+                    androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory)
+                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
+                M3uParser.StreamType.HLS ->
+                    androidx.media3.exoplayer.hls.HlsMediaSource.Factory(factory)
+                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
+                else ->
+                    androidx.media3.exoplayer.source.DefaultMediaSourceFactory(factory)
+                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
+            }
+
+            preBufferPlayer = ExoPlayer.Builder(this).build().also { exo ->
+                exo.setMediaSource(source)
+                exo.playWhenReady = false   // buffer saja, jangan play
+                exo.prepare()
+            }
+            Log.d(TAG, "Pre-buffering: ${nextChannel.name}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Pre-buffer failed: ${e.message}")
+            preBufferPlayer = null
+            preBufferIndex = -1
+        }
+    }
+
+    /**
+     * Ambil pre-buffer player jika tersedia untuk channel [targetIndex].
+     * Return ExoPlayer yang sudah siap, atau null jika belum ada.
+     */
+    private fun consumePreBuffer(targetIndex: Int): ExoPlayer? {
+        if (preBufferIndex != targetIndex) return null
+        val exo = preBufferPlayer ?: return null
+        preBufferPlayer = null
+        preBufferIndex = -1
+        return exo
+    }
+
+    private fun releasePreBuffer() {
+        preBufferPlayer?.release()
+        preBufferPlayer = null
+        preBufferIndex = -1
     }
 
 
@@ -553,9 +687,20 @@ class PlayerActivity : AppCompatActivity() {
             .start()
     }
 
-    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
-        if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-            showTopBarTemporarily()
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(event)
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                showTopBarTemporarily()
+                gestureStartX = event.x
+                gestureStartY = event.y
+                isVolumeGesture = event.x > resources.displayMetrics.widthPixels / 2f
+                audioManager?.let { initialVolume = it.getStreamVolume(AudioManager.STREAM_MUSIC) }
+                initialBrightness = window.attributes.screenBrightness.let {
+                    if (it < 0) 0.5f else it
+                }
+            }
+            MotionEvent.ACTION_MOVE -> handleGestureMove(event)
         }
         return super.onTouchEvent(event)
     }
@@ -614,9 +759,71 @@ class PlayerActivity : AppCompatActivity() {
         super.onDestroy()
         hideUiHandler.removeCallbacks(hideUiRunnable)
         hidePositionHandler.removeCallbacksAndMessages(null)
+        preBufferHandler.removeCallbacksAndMessages(null)
+        retryHandler.removeCallbacksAndMessages(null)
+        releasePreBuffer()
         sleepTimer?.cancel()
         player?.release()
         player = null
+    }
+
+    // ========================
+    // ⑤ Gesture: Volume & Brightness
+    // ========================
+
+    private fun setupGestureDetector() {
+        audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+        maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
+
+        gestureDetector = GestureDetector(this,
+            object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent) = true
+            })
+    }
+
+    private fun handleGestureMove(event: MotionEvent) {
+        val deltaY = gestureStartY - event.y
+        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+        val ratio = deltaY / screenHeight  // -1.0 … +1.0
+
+        if (isVolumeGesture) {
+            val newVol = (initialVolume + ratio * maxVolume).toInt().coerceIn(0, maxVolume)
+            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+            showGestureOverlay("🔊 ${(newVol * 100f / maxVolume).toInt()}%")
+        } else {
+            val newBright = (initialBrightness + ratio).coerceIn(0.01f, 1f)
+            window.attributes = window.attributes.also { it.screenBrightness = newBright }
+            showGestureOverlay("☀ ${(newBright * 100).toInt()}%")
+        }
+    }
+
+    private fun showGestureOverlay(text: String) {
+        binding.tvGestureOverlay?.let { tv ->
+            tv.text = text
+            tv.visibility = View.VISIBLE
+            tv.animate().cancel()
+            tv.alpha = 1f
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                tv.animate().alpha(0f).setDuration(300)
+                    .withEndAction { tv.visibility = View.GONE }.start()
+            }, 800)
+        }
+    }
+
+    // ========================
+    // ④ Lock Orientasi
+    // ========================
+
+    private fun toggleOrientationLock() {
+        isOrientationLocked = !isOrientationLocked
+        requestedOrientation = if (isOrientationLocked)
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        else
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        val icon = if (isOrientationLocked) R.drawable.ic_screen_lock_landscape else R.drawable.ic_fullscreen
+        binding.btnLockOrientation?.setImageResource(icon)
+        showToastBrief(if (isOrientationLocked) "🔒 Landscape terkunci" else "🔓 Rotasi otomatis")
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

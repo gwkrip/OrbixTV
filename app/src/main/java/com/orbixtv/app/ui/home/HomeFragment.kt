@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -14,6 +15,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.ChannelGroup
+import com.orbixtv.app.data.SortOrder
+import com.orbixtv.app.data.StreamFilter
 import com.orbixtv.app.databinding.FragmentHomeBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
@@ -37,7 +40,6 @@ class HomeFragment : Fragment() {
 
     private var isSearchActive = false
     private var isTvLayout = false
-    // #4: Job untuk debounce — dibatalkan jika user masih mengetik
     private var searchDebounceJob: Job? = null
 
     override fun onCreateView(
@@ -50,22 +52,18 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Deteksi TV/tablet layout berdasarkan keberadaan panel kiri (empty_panel hanya ada di sw720dp)
         isTvLayout = binding.root.findViewById<View?>(R.id.empty_panel) != null
 
-        if (isTvLayout) {
-            setupTvAdapters()
-        } else {
-            setupPhoneAdapters()
-        }
+        if (isTvLayout) setupTvAdapters() else setupPhoneAdapters()
 
         setupSearch()
         setupSettingsButton()
+        setupSortFilter()   // ⑦
         observeData()
     }
 
     // ========================
-    // Phone layout (expandable group list)
+    // Phone
     // ========================
 
     private fun setupPhoneAdapters() {
@@ -74,8 +72,7 @@ class HomeFragment : Fragment() {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = groupAdapter
         }
-
-        searchAdapter = ChannelAdapter { channel -> openPlayer(channel) }
+        searchAdapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
         binding.rvSearch.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = searchAdapter
@@ -83,19 +80,16 @@ class HomeFragment : Fragment() {
     }
 
     // ========================
-    // TV layout (2-panel: grup kiri, channel kanan)
+    // TV / Tablet
     // ========================
 
     private fun setupTvAdapters() {
-        // Panel kiri: grup list (klik → tampilkan channel di panel kanan)
         tvGroupAdapter = TvGroupAdapter { group -> showChannelsForGroup(group) }
         binding.rvGroups.apply {
             layoutManager = LinearLayoutManager(requireContext())
             adapter = tvGroupAdapter
         }
-
-        // Panel kanan: channel list (grid 2 kolom untuk memanfaatkan lebar layar)
-        tvChannelAdapter = ChannelAdapter { channel -> openPlayer(channel) }
+        tvChannelAdapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
         binding.rvSearch.apply {
             layoutManager = GridLayoutManager(requireContext(), 2)
             adapter = tvChannelAdapter
@@ -106,23 +100,88 @@ class HomeFragment : Fragment() {
     private fun showChannelsForGroup(group: ChannelGroup) {
         binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
         binding.rvSearch.visibility = View.VISIBLE
-        tvChannelAdapter?.submitList(group.channels)
-        binding.tvSearchCount?.text = "${group.flagEmoji} ${group.name}  —  ${group.channels.size} saluran"
+        val sorted = viewModel.getFilteredSortedChannels(group.channels)
+        tvChannelAdapter?.submitList(sorted)
+        binding.tvSearchCount?.text = "${group.flagEmoji} ${group.name}  —  ${sorted.size} saluran"
         binding.tvSearchCount?.visibility = View.VISIBLE
     }
 
     // ========================
-    // Shared setup
+    // ⑦ Sort & Filter
+    // ========================
+
+    private fun setupSortFilter() {
+        binding.btnSortFilter?.setOnClickListener { showSortFilterDialog() }
+    }
+
+    private fun showSortFilterDialog() {
+        val sortLabels = arrayOf("Default", "Nama A–Z", "Nama Z–A", "Tipe Stream")
+        val sortValues = SortOrder.values()
+        val filterLabels = arrayOf("Semua", "HLS", "DASH", "RTMP")
+        val filterValues = StreamFilter.values()
+
+        var selectedSort = sortValues.indexOf(viewModel.sortOrder.value)
+        var selectedFilter = filterValues.indexOf(viewModel.streamFilter.value)
+
+        // Dialog sort
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.sort_filter_title))
+            .setSingleChoiceItems(sortLabels, selectedSort) { _, which -> selectedSort = which }
+            .setPositiveButton(getString(R.string.next)) { _, _ ->
+                // Dialog filter
+                AlertDialog.Builder(requireContext())
+                    .setTitle(getString(R.string.filter_stream_type))
+                    .setSingleChoiceItems(filterLabels, selectedFilter) { _, which ->
+                        selectedFilter = which
+                    }
+                    .setPositiveButton(getString(R.string.apply_filter)) { _, _ ->
+                        viewModel.setSortOrder(sortValues[selectedSort])
+                        viewModel.setStreamFilter(filterValues[selectedFilter])
+                        applyCurrentSortFilter()
+                    }
+                    .setNegativeButton(getString(R.string.dialog_action_cancel), null)
+                    .show()
+            }
+            .setNegativeButton(getString(R.string.dialog_action_cancel), null)
+            .show()
+    }
+
+    private fun applyCurrentSortFilter() {
+        if (isTvLayout) {
+            // TV: refresh daftar grup dan panel kanan jika ada grup aktif
+            val sorted = viewModel.groups.value.map { g ->
+                g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
+            }
+            tvGroupAdapter?.submitList(sorted)
+            val activeChannelId = tvChannelAdapter?.currentList?.firstOrNull()?.id
+            if (activeChannelId != null) {
+                val activeGroup = viewModel.groups.value.firstOrNull { g ->
+                    g.channels.any { ch -> ch.id == activeChannelId }
+                }
+                activeGroup?.let { showChannelsForGroup(it) }
+            }
+        } else if (isSearchActive) {
+            val filtered = viewModel.getFilteredSortedChannels(viewModel.searchResults.value)
+            searchAdapter.submitList(filtered)
+        } else {
+            val newGroups = viewModel.groups.value.map { group ->
+                group.copy(channels = viewModel.getFilteredSortedChannels(group.channels))
+            }
+            groupAdapter.submitList(newGroups)
+        }
+    }
+
+    // ========================
+    // Search
     // ========================
 
     private fun setupSearch() {
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean = true
+            override fun onQueryTextSubmit(query: String?) = true
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
                 isSearchActive = query.isNotBlank()
 
-                // Update visibilitas panel langsung (tidak perlu debounce)
                 if (isTvLayout) {
                     if (isSearchActive) {
                         binding.rvSearch.visibility = View.VISIBLE
@@ -139,13 +198,11 @@ class HomeFragment : Fragment() {
                     }
                 }
 
-                // #4: Debounce 300ms — batalkan job sebelumnya, tunggu user berhenti mengetik
                 searchDebounceJob?.cancel()
                 searchDebounceJob = viewLifecycleOwner.lifecycleScope.launch {
                     delay(300)
                     viewModel.search(query)
                 }
-
                 return true
             }
         })
@@ -174,13 +231,15 @@ class HomeFragment : Fragment() {
 
                 if (isTvLayout) {
                     tvGroupAdapter?.submitList(groups)
-                    // Auto-select grup pertama saat data pertama kali loaded
                     if (groups.isNotEmpty() && tvChannelAdapter?.currentList.isNullOrEmpty()) {
                         showChannelsForGroup(groups.first())
-                        tvGroupAdapter?.let { it.notifyItemChanged(0) }
                     }
                 } else {
-                    groupAdapter.submitList(groups)
+                    // Apply current sort/filter saat data pertama load
+                    val sorted = groups.map { g ->
+                        g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
+                    }
+                    groupAdapter.submitList(sorted)
                 }
             }
         }
@@ -188,13 +247,11 @@ class HomeFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.searchResults.collectLatest { results ->
                 if (isSearchActive) {
-                    if (isTvLayout) {
-                        tvChannelAdapter?.submitList(results)
-                    } else {
-                        searchAdapter.submitList(results)
-                    }
-                    binding.tvSearchCount?.text = if (results.isEmpty()) "Tidak ditemukan"
-                    else "${results.size} hasil pencarian"
+                    val sorted = viewModel.getFilteredSortedChannels(results)
+                    if (isTvLayout) tvChannelAdapter?.submitList(sorted)
+                    else searchAdapter.submitList(sorted)
+                    binding.tvSearchCount?.text = if (sorted.isEmpty()) "Tidak ditemukan"
+                        else "${sorted.size} hasil pencarian"
                     binding.tvSearchCount?.visibility = View.VISIBLE
                 } else if (!isTvLayout) {
                     searchAdapter.submitList(emptyList())
@@ -204,7 +261,8 @@ class HomeFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.loadError.collectLatest { error ->
-                binding.tvPlaylistWarning?.visibility = if (error != null) View.VISIBLE else View.GONE
+                binding.tvPlaylistWarning?.visibility =
+                    if (error != null) View.VISIBLE else View.GONE
             }
         }
     }
@@ -213,7 +271,7 @@ class HomeFragment : Fragment() {
         viewModel.onChannelWatched(channel.id)
         val allChannels = viewModel.getAllChannels()
         val channelIndex = allChannels.indexOfFirst { it.id == channel.id }
-        val intent = Intent(requireContext(), PlayerActivity::class.java).apply {
+        startActivity(Intent(requireContext(), PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
             putExtra(PlayerActivity.EXTRA_CHANNEL_URL, channel.url)
             putExtra(PlayerActivity.EXTRA_CHANNEL_LOGO, channel.logoUrl)
@@ -224,8 +282,7 @@ class HomeFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
             putExtra(PlayerActivity.EXTRA_CHANNEL_COUNT, allChannels.size)
-        }
-        startActivity(intent)
+        })
     }
 
     override fun onDestroyView() {

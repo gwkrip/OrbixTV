@@ -15,6 +15,11 @@ import com.orbixtv.app.BuildConfig
 import com.orbixtv.app.MainActivity
 import com.orbixtv.app.databinding.ActivitySplashBinding
 import com.orbixtv.app.ui.MainViewModel
+import com.orbixtv.app.worker.PlaylistCheckWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -37,6 +42,9 @@ class SplashActivity : AppCompatActivity() {
 
         // #15: Tampilkan versi app
         binding.tvVersion.text = "v${BuildConfig.VERSION_NAME}"
+
+        // ⑫ Jadwalkan cek playlist periodik (setiap 6 jam)
+        schedulePlaylistCheck()
 
         binding.ivLogo.alpha    = 0f
         binding.tvAppName.alpha = 0f
@@ -82,5 +90,14 @@ class SplashActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun schedulePlaylistCheck() {
+        val request = PeriodicWorkRequestBuilder<PlaylistCheckWorker>(6, TimeUnit.HOURS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            PlaylistCheckWorker.WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
     }
 }

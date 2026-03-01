@@ -1,21 +1,28 @@
 package com.orbixtv.app.ui.home
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.SearchView
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentFavoritesBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.io.File
 
 class FavoritesFragment : Fragment() {
 
@@ -23,6 +30,16 @@ class FavoritesFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var adapter: ChannelAdapter
+
+    private var allFavorites: List<Channel> = emptyList()
+
+    // ⑪ Launcher untuk file picker import
+    private val importLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri ?: return@registerForActivityResult
+        handleImport(uri)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -34,9 +51,8 @@ class FavoritesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        adapter = ChannelAdapter { channel -> openPlayer(channel) }
+        adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        // Deteksi layar lebar (sw720dp): grid 3 kolom, phone: linear
         val isLargeScreen = resources.displayMetrics.widthPixels /
                 resources.displayMetrics.density >= 720
 
@@ -48,12 +64,104 @@ class FavoritesFragment : Fragment() {
             adapter = this@FavoritesFragment.adapter
         }
 
+        setupSearch()
+        setupExportImport()
+        observeFavorites()
+    }
+
+    // ⑥ Search dalam daftar favorit
+    private fun setupSearch() {
+        binding.searchViewFavorites.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?) = true
+            override fun onQueryTextChange(newText: String?): Boolean {
+                val query = newText?.trim() ?: ""
+                val filtered = if (query.isEmpty()) allFavorites
+                else allFavorites.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                    it.group.contains(query, ignoreCase = true)
+                }
+                adapter.submitList(filtered)
+                binding.tvFavoritesCount.text = if (filtered.isEmpty()) ""
+                    else "${filtered.size} dari ${allFavorites.size} favorit"
+                return true
+            }
+        })
+    }
+
+    // ⑪ Export & Import favorit
+    private fun setupExportImport() {
+        binding.btnExport.setOnClickListener {
+            viewModel.exportFavorites { file ->
+                if (file != null) {
+                    showExportSuccess(file)
+                } else {
+                    showSimpleMessage(getString(R.string.export_failed))
+                }
+            }
+        }
+
+        binding.btnImport.setOnClickListener {
+            importLauncher.launch("application/json")
+        }
+    }
+
+    private fun handleImport(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri) ?: return
+            val tempFile = File(requireContext().cacheDir, "import_favorites.json")
+            tempFile.outputStream().use { out -> inputStream.copyTo(out) }
+
+            viewModel.importFavorites(tempFile) { count ->
+                val msg = when {
+                    count > 0  -> getString(R.string.import_success, count)
+                    count == 0 -> getString(R.string.import_no_new)
+                    else       -> getString(R.string.import_failed)
+                }
+                showSimpleMessage(msg)
+            }
+        } catch (e: Exception) {
+            showSimpleMessage(getString(R.string.import_failed))
+        }
+    }
+
+    private fun showExportSuccess(file: File) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(getString(R.string.export_success_title))
+            .setMessage(getString(R.string.export_success_message, file.absolutePath))
+            .setPositiveButton(getString(R.string.share)) { _, _ ->
+                val uri = FileProvider.getUriForFile(
+                    requireContext(),
+                    "${requireContext().packageName}.fileprovider",
+                    file
+                )
+                startActivity(Intent(Intent.ACTION_SEND).apply {
+                    type = "application/json"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+            }
+            .setNegativeButton(getString(R.string.ok), null)
+            .show()
+    }
+
+    private fun showSimpleMessage(message: String) {
+        AlertDialog.Builder(requireContext())
+            .setMessage(message)
+            .setPositiveButton(getString(R.string.ok), null)
+            .show()
+    }
+
+    private fun observeFavorites() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.favorites.collectLatest { favs ->
+                allFavorites = favs
                 adapter.submitList(favs)
-                // #12: Update jumlah
                 binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
-                // #13: Animasi fade transisi empty state ↔ list
+
+                // Tampilkan search bar hanya kalau ada data
+                binding.searchViewFavorites.visibility =
+                    if (favs.size > 5) View.VISIBLE else View.GONE
+
                 val isEmpty = favs.isEmpty()
                 if (isEmpty && binding.rvFavorites.visibility == View.VISIBLE) {
                     binding.rvFavorites.animate().alpha(0f).setDuration(200)

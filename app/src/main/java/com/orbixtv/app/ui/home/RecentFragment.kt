@@ -11,6 +11,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentRecentBinding
 import com.orbixtv.app.ui.MainViewModel
@@ -35,7 +36,7 @@ class RecentFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        adapter = ChannelAdapter { channel -> openPlayer(channel) }
+        adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
         val isLargeScreen = resources.displayMetrics.widthPixels /
                 resources.displayMetrics.density >= 720
@@ -50,15 +51,26 @@ class RecentFragment : Fragment() {
 
         // #4: Tombol hapus riwayat dengan konfirmasi
         binding.btnClearHistory.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Hapus Riwayat")
-                .setMessage("Semua riwayat tontonan akan dihapus. Lanjutkan?")
-                .setPositiveButton("Hapus") { _, _ ->
+            val dialog = AlertDialog.Builder(requireContext())
+                .setTitle(getString(R.string.dialog_clear_history_title))
+                .setMessage(getString(R.string.dialog_clear_history_message))
+                .setIconAttribute(android.R.attr.alertDialogIcon)
+                .setPositiveButton(getString(R.string.dialog_action_delete)) { _, _ ->
                     viewModel.clearHistory()
                     refreshRecent()
                 }
-                .setNegativeButton("Batal", null)
-                .show()
+                .setNegativeButton(getString(R.string.dialog_action_cancel), null)
+                // Default focus ke Batal — mencegah hapus tidak sengaja, penting di TV
+                .create()
+
+            dialog.show()
+
+            // Warnai tombol Hapus merah — sinyal visual aksi destruktif
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                ?.setTextColor(requireContext().getColor(R.color.accent_red))
+
+            // Default fokus D-pad ke tombol Batal (aman untuk TV remote)
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
         }
 
         viewLifecycleOwner.lifecycleScope.launch {

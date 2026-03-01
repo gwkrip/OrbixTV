@@ -11,8 +11,8 @@ android {
         applicationId "com.orbixtv.app"
         minSdk 23
         targetSdk 34
-        versionCode 5
-        versionName "1.2.2"
+        versionCode 6
+        versionName "1.3.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -76,6 +76,7 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3'
 
     implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

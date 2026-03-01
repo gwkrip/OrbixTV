@@ -32,6 +32,10 @@
     <string name="recent_empty_title">Belum ada riwayat</string>
     <string name="recent_empty_hint">Mulai menonton saluran TV favoritmu</string>
     <string name="clear_history">Hapus riwayat</string>
+    <string name="dialog_clear_history_title">Hapus Semua Riwayat?</string>
+    <string name="dialog_clear_history_message">Seluruh riwayat tontonan akan dihapus permanen dan tidak bisa dikembalikan.</string>
+    <string name="dialog_action_delete">Hapus</string>
+    <string name="dialog_action_cancel">Batal</string>
 
     <!-- Player -->
     <string name="playlist_settings">Pengaturan Playlist</string>
@@ -57,6 +61,58 @@
     <string name="tips_title">💡  Tips Format URL</string>
     <string name="tips_content">• File .m3u atau .m3u8 yang dapat diakses publik\n• URL dari layanan IPTV berbayar (Xtream Codes, dll.)\n• GitHub raw file URL\n• Google Drive direct link\n\nJika URL gagal dimuat, aplikasi akan otomatis kembali ke playlist bawaan.</string>
 
+    <!-- Sort & Filter -->
+    <string name="sort_filter_title">Urutkan &amp; Filter</string>
+    <string name="filter_stream_type">Filter Tipe Stream</string>
+    <string name="apply_filter">Terapkan</string>
+    <string name="next">Berikutnya</string>
+
+    <!-- Favorites search & export/import -->
+    <string name="search_favorites_hint">Cari favorit…</string>
+    <string name="export_favorites">Export favorit</string>
+    <string name="import_favorites">Import favorit</string>
+    <string name="export_success_title">Export Berhasil</string>
+    <string name="export_success_message">File disimpan di:\n%s\n\nBagikan file ini untuk backup atau pindah perangkat.</string>
+    <string name="export_failed">Gagal mengekspor favorit.</string>
+    <string name="import_success">%d channel berhasil diimport ke favorit.</string>
+    <string name="import_no_new">Tidak ada channel baru yang ditemukan di file.</string>
+    <string name="import_failed">Gagal membaca file. Pastikan format file valid.</string>
+    <string name="share">Bagikan</string>
+    <string name="ok">OK</string>
+
+    <!-- Player -->
+    <string name="lock_orientation">Kunci orientasi layar</string>
+
     <!-- Splash -->
     <!-- Versi ditampilkan dinamis via BuildConfig.VERSION_NAME di SplashActivity -->
+
+    <!-- Sort & Filter (HomeFragment) -->
+    <string name="sort_filter_title">Urutkan &amp; Filter</string>
+    <string name="filter_stream_type">Filter Tipe Stream</string>
+    <string name="next">Lanjut →</string>
+    <string name="apply_filter">Terapkan</string>
+
+    <!-- Favorites: export / import / search -->
+    <string name="export_favorites">Export favorit</string>
+    <string name="import_favorites">Import favorit</string>
+    <string name="search_favorites_hint">Cari favorit…</string>
+    <string name="export_success_title">Export Berhasil</string>
+    <string name="export_success_message">File disimpan di:\n%s</string>
+    <string name="export_failed">Gagal mengekspor favorit.</string>
+    <string name="import_success">%d saluran favorit berhasil diimport.</string>
+    <string name="import_no_new">Tidak ada saluran baru yang ditambahkan.</string>
+    <string name="import_failed">Gagal membaca file. Pastikan format JSON valid.</string>
+    <string name="share">Bagikan</string>
+    <string name="ok">Oke</string>
+
+    <!-- Player -->
+    <string name="lock_orientation">Kunci orientasi</string>
+    <!-- PlaylistCheckWorker -->
+    <string name="notif_channel_playlist_name">Status Playlist</string>
+    <string name="notif_channel_playlist_desc">Notifikasi saat playlist gagal dimuat</string>
+    <string name="notif_playlist_title">Playlist tidak dapat diakses</string>
+    <string name="notif_playlist_text">URL playlist eksternal gagal dimuat. Tap untuk membuka pengaturan.</string>
+
 </resources>
+
+<!-- PlaylistCheckWorker notifications -->

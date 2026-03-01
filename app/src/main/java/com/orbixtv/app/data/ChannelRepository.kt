@@ -2,10 +2,17 @@ package com.orbixtv.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ChannelRepository(private val context: Context) {
 
@@ -19,26 +26,15 @@ class ChannelRepository(private val context: Context) {
     private val _favorites = MutableStateFlow<List<Channel>>(emptyList())
     val favorites: StateFlow<List<Channel>> = _favorites
 
-    // #2: Cache hasil flatMap — tidak alokasi List baru setiap getAllChannels() dipanggil
     private var cachedAllChannels: List<Channel> = emptyList()
-
-    // #3: Cache favoriteId di memory — tidak baca SharedPreferences setiap isFavorite() dipanggil
     private var cachedFavoriteIds: Set<String> = emptySet()
-
-    // #1: Map id→Channel untuk lookup O(1) di getRecentChannels()
     private var channelById: Map<String, Channel> = emptyMap()
 
-    // --- Playlist URL management ---
+    // --- Playlist URL ---
 
     fun getPlaylistUrl(): String = prefs.getString("playlist_url", "") ?: ""
-
-    fun savePlaylistUrl(url: String) {
-        prefs.edit().putString("playlist_url", url.trim()).apply()
-    }
-
-    fun clearPlaylistUrl() {
-        prefs.edit().remove("playlist_url").apply()
-    }
+    fun savePlaylistUrl(url: String) = prefs.edit().putString("playlist_url", url.trim()).apply()
+    fun clearPlaylistUrl() = prefs.edit().remove("playlist_url").apply()
 
     // --- Load playlist ---
 
@@ -47,8 +43,7 @@ class ChannelRepository(private val context: Context) {
         return if (url.isNotEmpty()) {
             val result = M3uParser.parseFromUrl(url)
             if (result.isSuccess) {
-                val groups = result.getOrNull() ?: emptyList()
-                applyGroups(groups)
+                applyGroups(result.getOrNull() ?: emptyList())
                 null
             } else {
                 loadFromAssets()
@@ -60,69 +55,149 @@ class ChannelRepository(private val context: Context) {
         }
     }
 
-    private suspend fun loadFromAssets() {
-        val groups = M3uParser.parseFromAssets(context)
-        applyGroups(groups)
+    /** Cek apakah playlist URL masih bisa diakses — untuk WorkManager check */
+    suspend fun isPlaylistUrlReachable(): Boolean = withContext(Dispatchers.IO) {
+        val url = getPlaylistUrl().ifEmpty { return@withContext true }
+        try {
+            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "HEAD"
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 10_000
+            conn.connect()
+            val ok = conn.responseCode in 200..399
+            conn.disconnect()
+            ok
+        } catch (e: Exception) {
+            false
+        }
     }
 
-    /** Update semua cache sekaligus setelah data baru masuk */
+    private suspend fun loadFromAssets() {
+        applyGroups(M3uParser.parseFromAssets(context))
+    }
+
     private fun applyGroups(groups: List<ChannelGroup>) {
         _groups.value = groups
-        // #2: Rebuild cache sekali, bukan setiap panggil getAllChannels()
         cachedAllChannels = groups.flatMap { it.channels }
-        // #1: Rebuild lookup map untuk O(1) recent lookup
         channelById = cachedAllChannels.associateBy { it.id }
-        // Refresh favorites dengan data channel terbaru
         refreshFavoritesCache()
     }
 
-    // #2: Langsung kembalikan cache — tidak alokasi ulang
     fun getAllChannels(): List<Channel> = cachedAllChannels
 
     fun searchChannels(query: String): List<Channel> {
         val q = query.lowercase()
-        return cachedAllChannels.filter { channel ->
-            channel.name.lowercase().contains(q) ||
-                    channel.group.lowercase().contains(q)
+        return cachedAllChannels.filter {
+            it.name.lowercase().contains(q) || it.group.lowercase().contains(q)
+        }
+    }
+
+    // --- Sort & Filter ---
+
+    fun getSortedFiltered(
+        sort: SortOrder,
+        filter: StreamFilter,
+        source: List<Channel> = cachedAllChannels
+    ): List<Channel> {
+        val filtered = when (filter) {
+            StreamFilter.ALL  -> source
+            StreamFilter.HLS  -> source.filter { it.streamType == "HLS" }
+            StreamFilter.DASH -> source.filter { it.streamType == "DASH" }
+            StreamFilter.RTMP -> source.filter { it.streamType == "RTMP" }
+        }
+        return when (sort) {
+            SortOrder.DEFAULT   -> filtered
+            SortOrder.NAME_ASC  -> filtered.sortedBy { it.name.lowercase() }
+            SortOrder.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
+            SortOrder.TYPE      -> filtered.sortedBy { it.streamType }
         }
     }
 
     // --- Favorites ---
 
-    // #9: suspend + Dispatchers.IO agar tidak blokir main thread
     suspend fun toggleFavorite(channelId: String) = withContext(Dispatchers.IO) {
         val favIds = cachedFavoriteIds.toMutableSet()
-        if (favIds.contains(channelId)) {
-            favIds.remove(channelId)
-        } else {
-            favIds.add(channelId)
-        }
+        if (favIds.contains(channelId)) favIds.remove(channelId) else favIds.add(channelId)
         prefs.edit().putStringSet("favorites", favIds).apply()
-        // Update cache synchronously (sudah di IO thread)
         cachedFavoriteIds = favIds
-        // Emit ke StateFlow harus di-dispatch ke main thread konteks
         refreshFavoritesCache()
     }
 
-    // #3: Baca dari cache, bukan SharedPreferences
     fun isFavorite(channelId: String): Boolean = cachedFavoriteIds.contains(channelId)
 
     private fun loadFavoriteIds(): Set<String> =
         prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
     private fun refreshFavoritesCache() {
-        // Pastikan cache favoriteIds sudah diisi
-        if (cachedFavoriteIds.isEmpty()) {
-            cachedFavoriteIds = loadFavoriteIds()
-        }
-        val favIds = cachedFavoriteIds
+        if (cachedFavoriteIds.isEmpty()) cachedFavoriteIds = loadFavoriteIds()
         _favorites.value = cachedAllChannels
-            .filter { favIds.contains(it.id) }
+            .filter { cachedFavoriteIds.contains(it.id) }
             .map { it.copy(isFavorite = true) }
     }
 
     fun enrichWithFavorite(channel: Channel): Channel =
         channel.copy(isFavorite = isFavorite(channel.id))
+
+    // --- Export / Import Favorit ---
+
+    /**
+     * Export daftar favorit ke file JSON di folder Download publik.
+     * Return: path file yang dibuat, atau null jika gagal.
+     */
+    suspend fun exportFavorites(): File? = withContext(Dispatchers.IO) {
+        try {
+            val favChannels = cachedAllChannels.filter { cachedFavoriteIds.contains(it.id) }
+            val arr = JSONArray()
+            favChannels.forEach { ch ->
+                arr.put(JSONObject().apply {
+                    put("id", ch.id)
+                    put("name", ch.name)
+                    put("url", ch.url)
+                    put("group", ch.group)
+                    put("logoUrl", ch.logoUrl)
+                })
+            }
+            val root = JSONObject().apply {
+                put("version", 1)
+                put("exportedAt", SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date()))
+                put("favorites", arr)
+            }
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
+                ?: context.filesDir
+            val file = File(dir, "orbixtv_favorites.json")
+            file.writeText(root.toString(2))
+            file
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Import favorit dari file JSON.
+     * Return: jumlah channel yang berhasil diimport, atau -1 jika parsing gagal.
+     */
+    suspend fun importFavorites(file: File): Int = withContext(Dispatchers.IO) {
+        try {
+            val json = JSONObject(file.readText())
+            val arr = json.getJSONArray("favorites")
+            val ids = cachedFavoriteIds.toMutableSet()
+            var count = 0
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.getString("id")
+                if (channelById.containsKey(id) && !ids.contains(id)) {
+                    ids.add(id)
+                    count++
+                }
+            }
+            prefs.edit().putStringSet("favorites", ids).apply()
+            cachedFavoriteIds = ids
+            refreshFavoritesCache()
+            count
+        } catch (e: Exception) {
+            -1
+        }
+    }
 
     // --- Recently watched ---
 
@@ -132,28 +207,20 @@ class ChannelRepository(private val context: Context) {
         else raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    // #1: Lookup O(1) via Map, tidak scan linear List
-    fun getRecentChannels(): List<Channel> {
-        return getLastWatched().mapNotNull { id -> channelById[id] }
-    }
+    fun getRecentChannels(): List<Channel> =
+        getLastWatched().mapNotNull { id -> channelById[id] }
 
     fun addToLastWatched(channelId: String) {
         val current = getLastWatched().toMutableList()
         current.remove(channelId)
         current.add(0, channelId)
-        val limited = current.take(30)
-        prefs.edit().putString("last_watched", limited.joinToString(",")).apply()
+        prefs.edit().putString("last_watched", current.take(30).joinToString(",")).apply()
     }
 
-    fun clearHistory() {
-        prefs.edit().remove("last_watched").apply()
-    }
+    fun clearHistory() = prefs.edit().remove("last_watched").apply()
 
     // --- Sleep timer ---
 
-    fun saveSleepTimer(minutes: Int) {
-        prefs.edit().putInt("sleep_timer_minutes", minutes).apply()
-    }
-
+    fun saveSleepTimer(minutes: Int) = prefs.edit().putInt("sleep_timer_minutes", minutes).apply()
     fun getSleepTimer(): Int = prefs.getInt("sleep_timer_minutes", 0)
 }

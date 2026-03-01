@@ -1,5 +1,48 @@
 # OrbixTV Changelog
 
+## v1.3.0 — 2026-03-02
+
+### ✨ Fitur Baru
+
+#### ① Auto-Retry Stream
+- Saat stream gagal, player otomatis mencoba ulang hingga 2 kali (delay 2–4 detik) sebelum menampilkan error overlay ke user. Mengurangi false-error akibat timeout sementara.
+
+#### ② Cache Logo Channel
+- Glide dikonfigurasi dengan `DiskCacheStrategy.ALL` sehingga logo channel di-cache ke disk. Scrolling daftar channel jauh lebih mulus karena tidak ada network request berulang.
+
+#### ③ Indikator Status Channel
+- Setiap item channel menampilkan dot status di sudut kanan bawah logo: hijau (online), merah (offline), abu (belum dicek). Hasil ping di-cache selama 2 menit per channel agar tidak membebani jaringan.
+
+#### ④ Lock Orientasi di Player
+- Tombol lock di top bar player untuk mengunci landscape. Mencegah gangguan saat menonton sambil rebahan.
+
+#### ⑤ Gestur Volume & Brightness
+- Swipe vertikal di sisi kanan layar = volume; sisi kiri = brightness. Overlay teks muncul saat gestur aktif dan auto-fade setelah 800ms.
+
+#### ⑥ Pencarian di Halaman Favorit
+- Search bar muncul di atas daftar favorit saat jumlah favorit lebih dari 5. Filter real-time berdasarkan nama atau grup.
+
+#### ⑦ Sort & Filter Channel
+- Tombol filter di header HomeFragment membuka dialog 2-langkah: pilih urutan (Default / A–Z / Z–A / Tipe), lalu pilih filter stream (Semua / HLS / DASH / RTMP).
+
+#### ⑧ Leanback Launcher
+- App terdaftar sebagai `LEANBACK_LAUNCHER` sehingga muncul di halaman utama Android TV.
+
+#### ⑨ Pre-buffering Channel (Zapping Cepat)
+- Setelah 1 detik stream aktif, ExoPlayer kedua secara diam-diam mulai mem-buffer channel berikutnya di background. Saat user navigasi channel up/down, player langsung swap ke yang sudah di-buffer — perpindahan channel terasa instan.
+
+#### ⑩ Home Screen Widget
+- Widget 2×1 yang menampilkan channel terakhir ditonton beserta tombol play langsung ke MainActivity.
+
+#### ⑪ Export & Import Favorit
+- Tombol export/import di header halaman Favorit. Export menghasilkan file JSON di folder Documents; import baca file JSON dan tambahkan channel yang cocok. Mendukung share via Intent.
+
+#### ⑫ Notifikasi Playlist Gagal (WorkManager)
+- `PlaylistCheckWorker` berjalan setiap 6 jam via WorkManager. Jika URL playlist eksternal tidak bisa diakses, notifikasi dikirim ke system tray. Tidak aktif jika menggunakan playlist bawaan.
+
+---
+
+
 ## v1.2.2 — 2026-03-01
 
 ### 🐛 UI / UX Fixes
