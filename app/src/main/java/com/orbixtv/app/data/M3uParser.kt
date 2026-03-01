@@ -6,7 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedReader
-import java.io.StringReader
+import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 object M3uParser {
@@ -15,7 +15,8 @@ object M3uParser {
     private val GROUP_REGEX = Regex("""group-title="([^"]*)"""")
     private val NAME_REGEX  = Regex("""tvg-name="([^"]*)"""")
 
-    private val groupFlagMap = mapOf(
+    // #8: Key sudah uppercase saat inisialisasi — tidak perlu .uppercase() ulang saat lookup
+    private val groupFlagMap: Map<String, String> = mapOf(
         "INDONESIA" to "🇮🇩",
         "MALAYSIA"  to "🇲🇾",
         "SINGAPURA" to "🇸🇬",
@@ -42,18 +43,20 @@ object M3uParser {
             .build()
     }
 
-    /** Parse dari assets (playlist lokal bawaan) */
+    /** Parse dari assets — stream langsung, tidak buffer seluruh file ke String */
     suspend fun parseFromAssets(context: Context): List<ChannelGroup> = withContext(Dispatchers.IO) {
         try {
-            val content = context.assets.open("playlist.m3u").bufferedReader().use { it.readText() }
-            parseContent(content)
+            // #7: Baca langsung dari InputStream tanpa .readText() ke String perantara
+            context.assets.open("playlist.m3u").use { inputStream ->
+                parseFromReader(BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)))
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
         }
     }
 
-    /** Parse dari URL eksternal — download lalu parse */
+    /** Parse dari URL — stream response body langsung tanpa .string() ke RAM */
     suspend fun parseFromUrl(url: String): Result<List<ChannelGroup>> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
@@ -61,23 +64,46 @@ object M3uParser {
             if (!response.isSuccessful) {
                 return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
             }
-            val content = response.body?.string()
-                ?: return@withContext Result.failure(Exception("Response body kosong"))
-            Result.success(parseContent(content))
+            // #7: byteStream() → parse on-the-fly, tidak perlu tampung seluruh file di memory
+            val groups = response.body?.byteStream()?.use { stream ->
+                parseFromReader(BufferedReader(InputStreamReader(stream, Charsets.UTF_8)))
+            } ?: return@withContext Result.failure(Exception("Response body kosong"))
+
+            Result.success(groups)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /** Core parsing logic bekerja untuk konten M3U apapun */
-    fun parseContent(content: String): List<ChannelGroup> {
+    /** Core parser: baca per-baris dari Reader (shared antara assets & URL) */
+    private fun parseFromReader(reader: BufferedReader): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
-        val reader = BufferedReader(StringReader(content))
-        var line: String?
         var pendingExtInf: String? = null
 
-        while (reader.readLine().also { line = it } != null) {
-            val trimmed = line?.trim() ?: continue
+        reader.use {
+            var line = it.readLine()
+            while (line != null) {
+                val trimmed = line.trim()
+                when {
+                    trimmed.startsWith("#EXTINF:") -> pendingExtInf = trimmed
+                    trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
+                        parseChannel(pendingExtInf!!, trimmed)?.let { ch -> channels.add(ch) }
+                        pendingExtInf = null
+                    }
+                }
+                line = it.readLine()
+            }
+        }
+
+        return groupChannels(channels)
+    }
+
+    /** Backward-compat: parse dari String (dipakai di settings preview / test) */
+    fun parseContent(content: String): List<ChannelGroup> {
+        val channels = mutableListOf<Channel>()
+        var pendingExtInf: String? = null
+        content.lineSequence().forEach { rawLine ->
+            val trimmed = rawLine.trim()
             when {
                 trimmed.startsWith("#EXTINF:") -> pendingExtInf = trimmed
                 trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
@@ -86,13 +112,18 @@ object M3uParser {
                 }
             }
         }
+        return groupChannels(channels)
+    }
 
+    private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {
         return channels.groupBy { it.group }.map { (group, channelList) ->
+            // #8: uppercase() hanya sekali per grup; key di map sudah uppercase dari awal
+            val groupUpper = group.uppercase()
             val flag = groupFlagMap.entries.firstOrNull { (key, _) ->
-                group.uppercase().contains(key.uppercase())
+                groupUpper.contains(key)
             }?.value ?: "📺"
             ChannelGroup(
-                name = group.ifEmpty { "Lainnya" },
+                name     = group.ifEmpty { "Lainnya" },
                 channels = channelList,
                 flagEmoji = flag
             )
@@ -133,8 +164,10 @@ object M3uParser {
                 }
             }
 
-            // Stable ID: hash dari nama+URL — tidak bergeser walau urutan playlist berubah
             val stableId = (name + streamUrl).hashCode().toString()
+
+            // #10: streamType dihitung SEKALI saat parse, disimpan di Channel — tidak perlu ulang di adapter
+            val streamType = detectStreamType(streamUrl)
 
             Channel(
                 id          = stableId,
@@ -145,14 +178,14 @@ object M3uParser {
                 userAgent   = userAgent,
                 licenseType = licenseType,
                 licenseKey  = licenseKey,
-                referer     = referer
+                referer     = referer,
+                streamType  = streamType.label
             )
         } catch (e: Exception) {
             null
         }
     }
 
-    /** Deteksi tipe stream secara akurat */
     fun detectStreamType(url: String): StreamType {
         val lower = url.lowercase()
         return when {
@@ -163,5 +196,10 @@ object M3uParser {
         }
     }
 
-    enum class StreamType { HLS, DASH, RTMP, PROGRESSIVE }
+    enum class StreamType(val label: String) {
+        HLS("HLS"),
+        DASH("DASH"),
+        RTMP("RTMP"),
+        PROGRESSIVE("LIVE")
+    }
 }

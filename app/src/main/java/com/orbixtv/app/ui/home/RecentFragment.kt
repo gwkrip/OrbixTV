@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
@@ -47,6 +48,19 @@ class RecentFragment : Fragment() {
             adapter = this@RecentFragment.adapter
         }
 
+        // #4: Tombol hapus riwayat dengan konfirmasi
+        binding.btnClearHistory.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Hapus Riwayat")
+                .setMessage("Semua riwayat tontonan akan dihapus. Lanjutkan?")
+                .setPositiveButton("Hapus") { _, _ ->
+                    viewModel.clearHistory()
+                    refreshRecent()
+                }
+                .setNegativeButton("Batal", null)
+                .show()
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
                 if (!loading) refreshRecent()
@@ -62,8 +76,36 @@ class RecentFragment : Fragment() {
     private fun refreshRecent() {
         val recent = viewModel.getRecentChannels()
         adapter.submitList(recent)
-        binding.emptyState.visibility = if (recent.isEmpty()) View.VISIBLE else View.GONE
-        binding.rvRecent.visibility = if (recent.isEmpty()) View.GONE else View.VISIBLE
+
+        // #12: Update jumlah riwayat di header
+        binding.tvRecentCount.text = if (recent.isEmpty()) "" else "${recent.size} riwayat"
+
+        val isEmpty = recent.isEmpty()
+
+        // #4: Sembunyikan tombol hapus jika tidak ada riwayat
+        binding.btnClearHistory.visibility = if (isEmpty) View.GONE else View.VISIBLE
+
+        // #13: Animasi fade transisi empty state ↔ list
+        if (isEmpty && binding.rvRecent.visibility == View.VISIBLE) {
+            binding.rvRecent.animate().alpha(0f).setDuration(200)
+                .withEndAction {
+                    binding.rvRecent.visibility = View.GONE
+                    binding.emptyState.alpha = 0f
+                    binding.emptyState.visibility = View.VISIBLE
+                    binding.emptyState.animate().alpha(1f).setDuration(200).start()
+                }.start()
+        } else if (!isEmpty && binding.emptyState.visibility == View.VISIBLE) {
+            binding.emptyState.animate().alpha(0f).setDuration(200)
+                .withEndAction {
+                    binding.emptyState.visibility = View.GONE
+                    binding.rvRecent.alpha = 0f
+                    binding.rvRecent.visibility = View.VISIBLE
+                    binding.rvRecent.animate().alpha(1f).setDuration(200).start()
+                }.start()
+        } else {
+            binding.emptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            binding.rvRecent.visibility = if (isEmpty) View.GONE else View.VISIBLE
+        }
     }
 
     private fun openPlayer(channel: Channel) {

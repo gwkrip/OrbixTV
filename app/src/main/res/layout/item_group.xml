@@ -43,7 +43,8 @@
             android:layout_width="20dp"
             android:layout_height="20dp"
             android:src="@drawable/ic_arrow_down"
-            android:tint="@color/text_secondary" />
+            android:tint="@color/text_secondary"
+            android:contentDescription="@string/expand_group" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView

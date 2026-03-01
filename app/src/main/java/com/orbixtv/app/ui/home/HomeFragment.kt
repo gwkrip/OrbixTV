@@ -19,6 +19,8 @@ import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
 import com.orbixtv.app.ui.settings.PlaylistSettingsActivity
 import com.orbixtv.app.ui.tv.TvGroupAdapter
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -35,6 +37,8 @@ class HomeFragment : Fragment() {
 
     private var isSearchActive = false
     private var isTvLayout = false
+    // #4: Job untuk debounce — dibatalkan jika user masih mengetik
+    private var searchDebounceJob: Job? = null
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -117,10 +121,9 @@ class HomeFragment : Fragment() {
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
                 isSearchActive = query.isNotBlank()
-                viewModel.search(query)
 
+                // Update visibilitas panel langsung (tidak perlu debounce)
                 if (isTvLayout) {
-                    // Di TV: search results tampil di panel kanan
                     if (isSearchActive) {
                         binding.rvSearch.visibility = View.VISIBLE
                         binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
@@ -135,6 +138,14 @@ class HomeFragment : Fragment() {
                         binding.tvSearchCount?.visibility = View.GONE
                     }
                 }
+
+                // #4: Debounce 300ms — batalkan job sebelumnya, tunggu user berhenti mengetik
+                searchDebounceJob?.cancel()
+                searchDebounceJob = viewLifecycleOwner.lifecycleScope.launch {
+                    delay(300)
+                    viewModel.search(query)
+                }
+
                 return true
             }
         })

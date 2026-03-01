@@ -31,7 +31,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="OrbixTV"
+                    android:text="@string/app_name"
                     android:textColor="@color/white"
                     android:textSize="22sp"
                     android:fontFamily="sans-serif-black" />
@@ -40,7 +40,7 @@
                     android:id="@+id/tv_channel_count"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Memuat..."
+                    android:text="@string/loading"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"
                     android:layout_marginEnd="8dp" />
@@ -53,7 +53,7 @@
                     android:src="@drawable/ic_settings"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@color/text_secondary"
-                    android:contentDescription="Pengaturan Playlist" />
+                    android:contentDescription="@string/settings_description" />
             </LinearLayout>
 
             <!-- ✅ FITUR: Banner peringatan playlist -->
@@ -63,10 +63,10 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:padding="8dp"
-                android:text="⚠️ Menggunakan playlist bawaan"
+                android:text="@string/playlist_warning"
                 android:textColor="#FFAA44"
                 android:textSize="12sp"
-                android:background="@color/bg_card"
+                android:background="@drawable/bg_warning_banner"
                 android:visibility="gone" />
 
             <androidx.appcompat.widget.SearchView
@@ -75,7 +75,7 @@
                 android:layout_height="44dp"
                 android:layout_marginTop="10dp"
                 app:iconifiedByDefault="false"
-                app:queryHint="Cari saluran..."
+                app:queryHint="@string/search_hint"
                 app:searchIcon="@drawable/ic_search"
                 android:background="@drawable/bg_search"
                 app:queryBackground="@android:color/transparent"
@@ -96,18 +96,22 @@
             android:layout_gravity="center"
             android:indeterminateTint="@color/accent_blue" />
 
+        <!-- Panel browse: grup + channel (tampil saat tidak ada pencarian) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_groups"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:scrollbars="vertical"
             android:clipToPadding="false"
-            android:paddingBottom="8dp" />
+            android:paddingBottom="72dp" />  <!-- #9: clearance di atas bottom nav -->
 
+        <!-- Panel pencarian: count + hasil (tampil saat search aktif) -->
         <LinearLayout
+            android:id="@+id/search_panel"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:visibility="gone">
 
             <TextView
                 android:id="@+id/tv_search_count"
@@ -117,15 +121,15 @@
                 android:layout_marginTop="8dp"
                 android:layout_marginBottom="4dp"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:visibility="gone" />
+                android:textSize="12sp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rv_search"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:visibility="gone" />
+                android:clipToPadding="false"
+                android:paddingBottom="72dp" />
         </LinearLayout>
 
     </FrameLayout>

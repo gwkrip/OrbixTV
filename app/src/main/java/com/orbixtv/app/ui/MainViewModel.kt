@@ -12,7 +12,6 @@ import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // ✅ PATCH: repository kini private — Fragment tidak bisa bypass ViewModel
     private val repository = ChannelRepository(application)
 
     private val _isLoading = MutableStateFlow(true)
@@ -27,7 +26,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val groups: StateFlow<List<ChannelGroup>> = repository.groups
     val favorites: StateFlow<List<Channel>> = repository.favorites
 
-    // Sleep timer state
     private val _sleepTimerMinutes = MutableStateFlow(0)
     val sleepTimerMinutes: StateFlow<Int> = _sleepTimerMinutes
 
@@ -40,7 +38,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isLoading.value = true
             _loadError.value = null
             val error = repository.loadPlaylist()
-            _loadError.value = error  // null = sukses, string = ada pesan (tapi tetap fallback ke assets)
+            _loadError.value = error
             _isLoading.value = false
         }
     }
@@ -66,10 +64,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         else repository.searchChannels(query)
     }
 
-    // --- Favorites (String ID) ---
+    // --- Favorites ---
 
+    // #9: toggleFavorite sekarang suspend — dipanggil lewat viewModelScope
     fun toggleFavorite(channelId: String) {
-        repository.toggleFavorite(channelId)
+        viewModelScope.launch {
+            repository.toggleFavorite(channelId)
+        }
     }
 
     fun isFavorite(channelId: String): Boolean = repository.isFavorite(channelId)
@@ -78,11 +79,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAllChannels(): List<Channel> = repository.getAllChannels()
 
-    fun getRecentChannels(): List<Channel> {
-        val ids = repository.getLastWatched()
-        val allChannels = repository.getAllChannels()
-        return ids.mapNotNull { id -> allChannels.firstOrNull { it.id == id } }
-    }
+    // #1: delegate ke repository.getRecentChannels() yang sudah pakai Map O(1)
+    fun getRecentChannels(): List<Channel> = repository.getRecentChannels()
 
     fun onChannelWatched(channelId: String) {
         repository.addToLastWatched(channelId)

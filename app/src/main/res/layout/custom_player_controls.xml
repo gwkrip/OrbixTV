@@ -14,6 +14,17 @@
         android:background="@drawable/bg_player_gradient_bottom"
         android:paddingHorizontal="24dp">
 
+        <!-- Saluran sebelumnya -->
+        <ImageButton
+            android:id="@+id/btn_prev_channel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="@color/white"
+            android:contentDescription="@string/prev_channel" />
+
         <ImageButton
             android:id="@id/exo_play_pause"
             android:layout_width="48dp"
@@ -22,6 +33,19 @@
             android:src="@drawable/ic_play_arrow"
             android:tint="@color/white" />
 
+        <!-- Saluran berikutnya -->
+        <ImageButton
+            android:id="@+id/btn_next_channel"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_down"
+            android:rotation="-90"
+            android:tint="@color/white"
+            android:contentDescription="@string/next_channel" />
+
+        <!-- #3: visibility diatur dari PlayerActivity berdasarkan streamType -->
         <TextView
             android:id="@+id/tv_live_badge"
             android:layout_width="0dp"
@@ -31,7 +55,8 @@
             android:text="● LIVE"
             android:textColor="#FF4444"
             android:textSize="13sp"
-            android:fontFamily="sans-serif-medium" />
+            android:fontFamily="sans-serif-medium"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@id/exo_fullscreen"

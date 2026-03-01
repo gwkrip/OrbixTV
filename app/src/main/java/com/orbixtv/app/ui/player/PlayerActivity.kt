@@ -139,17 +139,20 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        // ✅ FITUR: Tombol Sleep Timer
-        binding.btnSleepTimer.setOnClickListener {
-            showSleepTimerDialog()
-        }
-
-        // ✅ FITUR: Tombol PiP
-        binding.btnPip.setOnClickListener {
-            enterPipMode()
-        }
+        binding.btnSleepTimer.setOnClickListener { showSleepTimerDialog() }
+        binding.btnPip.setOnClickListener { enterPipMode() }
 
         updateFavoriteIcon()
+        updateLiveBadge()
+    }
+
+    // #3: Tampilkan "● LIVE" hanya untuk stream live (HLS/RTMP), bukan DASH/Progressive VOD
+    private fun updateLiveBadge() {
+        val isLive = currentChannelIndex >= 0 &&
+            allChannels.isNotEmpty() &&
+            allChannels[currentChannelIndex].streamType.let { it == "HLS" || it == "LIVE" || it == "RTMP" }
+        val liveBadge = binding.playerView.findViewById<android.widget.TextView?>(R.id.tv_live_badge)
+        liveBadge?.visibility = if (isLive) View.VISIBLE else View.GONE
     }
 
     private fun updateFavoriteIcon() {
@@ -197,14 +200,11 @@ class PlayerActivity : AppCompatActivity() {
 
         val mediaSource = buildMediaSource(channelUrl, httpDataSourceFactory)
 
-        // ✅ PATCH: Pastikan player sebelumnya sudah null sebelum buat baru
-        player?.release()
-        player = null
-
-        player = ExoPlayer.Builder(this).build().also { exo ->
-            binding.playerView.player = exo
-
-            exo.addListener(object : Player.Listener {
+        // #5: Reuse player yang sudah ada jika tersedia — hindari biaya init ulang ExoPlayer
+        val exo = player ?: ExoPlayer.Builder(this).build().also { newExo ->
+            player = newExo
+            binding.playerView.player = newExo
+            newExo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     when (playbackState) {
                         Player.STATE_READY     -> { showLoading(false); showError(null) }
@@ -220,11 +220,13 @@ class PlayerActivity : AppCompatActivity() {
                     showError("Gagal memuat: ${error.localizedMessage ?: "Error tidak diketahui"}")
                 }
             })
-
-            exo.setMediaSource(mediaSource)
-            exo.playWhenReady = true
-            exo.prepare()
         }
+
+        // Ganti sumber media tanpa recreate instance
+        exo.stop()
+        exo.setMediaSource(mediaSource)
+        exo.playWhenReady = true
+        exo.prepare()
     }
 
     // ✅ PATCH: Deteksi stream lebih akurat via M3uParser.detectStreamType()
@@ -419,16 +421,28 @@ class PlayerActivity : AppCompatActivity() {
         // Muat stream baru
         setupPlayer()
         showTopBarTemporarily()
-        showToastBrief("📺 ${channelName}")
+        showChannelPosition()  // #11: tampilkan posisi "3 / 120"
+        showToastBrief("📺 $channelName")
     }
+
+    // #11: Handler untuk auto-hide overlay posisi channel
+    private val hidePositionHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun showChannelPosition() {
+        if (allChannels.isEmpty()) return
+        val total = allChannels.size
+        val pos = if (currentChannelIndex >= 0) currentChannelIndex + 1 else 1
+        binding.tvChannelPosition.text = "$pos / $total"
+        binding.tvChannelPosition.visibility = View.VISIBLE
+        hidePositionHandler.removeCallbacksAndMessages(null)
+        hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
+    }
+
+
 
     private fun showToastBrief(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
-
-
-
-    private fun enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
@@ -548,14 +562,22 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun showError(message: String?) {
         if (message != null) {
+            // #1: Jangan hide top_bar saat error aktif — user harus bisa keluar
+            hideUiHandler.removeCallbacks(hideUiRunnable)
+            binding.topBar.visibility = View.VISIBLE
+            binding.topBar.alpha = 1f
+
             binding.errorLayout.visibility = View.VISIBLE
             binding.tvError.text = message
             binding.btnRetry.setOnClickListener {
                 binding.errorLayout.visibility = View.GONE
                 setupPlayer()
             }
+            binding.btnErrorBack.setOnClickListener { finish() }
         } else {
             binding.errorLayout.visibility = View.GONE
+            // Error hilang → mulai timer hide normal
+            showTopBarTemporarily()
         }
     }
 
@@ -583,6 +605,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         hideUiHandler.removeCallbacks(hideUiRunnable)
+        hidePositionHandler.removeCallbacksAndMessages(null)
         sleepTimer?.cancel()
         player?.release()
         player = null

@@ -73,7 +73,7 @@
         android:text="⚠️ Menggunakan playlist bawaan (URL gagal)"
         android:textColor="#FFAA44"
         android:textSize="14sp"
-        android:background="@color/bg_card"
+        android:background="@drawable/bg_warning_banner"
         android:visibility="gone" />
 
     <!-- Konten utama 2-panel -->

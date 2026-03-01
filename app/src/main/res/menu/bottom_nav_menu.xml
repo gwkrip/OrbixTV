@@ -6,7 +6,7 @@
         android:title="Beranda" />
     <item
         android:id="@+id/favoritesFragment"
-        android:icon="@drawable/ic_favorite_border"
+        android:icon="@drawable/ic_nav_favorites_selector"
         android:title="Favorit" />
     <item
         android:id="@+id/recentFragment"

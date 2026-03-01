@@ -2,8 +2,10 @@ package com.orbixtv.app.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 class ChannelRepository(private val context: Context) {
 
@@ -16,6 +18,15 @@ class ChannelRepository(private val context: Context) {
 
     private val _favorites = MutableStateFlow<List<Channel>>(emptyList())
     val favorites: StateFlow<List<Channel>> = _favorites
+
+    // #2: Cache hasil flatMap — tidak alokasi List baru setiap getAllChannels() dipanggil
+    private var cachedAllChannels: List<Channel> = emptyList()
+
+    // #3: Cache favoriteId di memory — tidak baca SharedPreferences setiap isFavorite() dipanggil
+    private var cachedFavoriteIds: Set<String> = emptySet()
+
+    // #1: Map id→Channel untuk lookup O(1) di getRecentChannels()
+    private var channelById: Map<String, Channel> = emptyMap()
 
     // --- Playlist URL management ---
 
@@ -31,21 +42,15 @@ class ChannelRepository(private val context: Context) {
 
     // --- Load playlist ---
 
-    /**
-     * Load dari URL eksternal jika tersedia, fallback ke assets.
-     * Return null jika sukses, atau pesan error jika gagal.
-     */
     suspend fun loadPlaylist(): String? {
         val url = getPlaylistUrl()
         return if (url.isNotEmpty()) {
             val result = M3uParser.parseFromUrl(url)
             if (result.isSuccess) {
                 val groups = result.getOrNull() ?: emptyList()
-                _groups.value = groups
-                loadFavorites(groups.flatMap { it.channels })
+                applyGroups(groups)
                 null
             } else {
-                // Gagal dari URL → fallback ke assets
                 loadFromAssets()
                 "Gagal memuat dari URL: ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
             }
@@ -57,40 +62,61 @@ class ChannelRepository(private val context: Context) {
 
     private suspend fun loadFromAssets() {
         val groups = M3uParser.parseFromAssets(context)
-        _groups.value = groups
-        loadFavorites(groups.flatMap { it.channels })
+        applyGroups(groups)
     }
 
-    fun getAllChannels(): List<Channel> = _groups.value.flatMap { it.channels }
+    /** Update semua cache sekaligus setelah data baru masuk */
+    private fun applyGroups(groups: List<ChannelGroup>) {
+        _groups.value = groups
+        // #2: Rebuild cache sekali, bukan setiap panggil getAllChannels()
+        cachedAllChannels = groups.flatMap { it.channels }
+        // #1: Rebuild lookup map untuk O(1) recent lookup
+        channelById = cachedAllChannels.associateBy { it.id }
+        // Refresh favorites dengan data channel terbaru
+        refreshFavoritesCache()
+    }
+
+    // #2: Langsung kembalikan cache — tidak alokasi ulang
+    fun getAllChannels(): List<Channel> = cachedAllChannels
 
     fun searchChannels(query: String): List<Channel> {
-        return getAllChannels().filter { channel ->
-            channel.name.contains(query, ignoreCase = true) ||
-                    channel.group.contains(query, ignoreCase = true)
+        val q = query.lowercase()
+        return cachedAllChannels.filter { channel ->
+            channel.name.lowercase().contains(q) ||
+                    channel.group.lowercase().contains(q)
         }
     }
 
-    // --- Favorites (menggunakan String ID) ---
+    // --- Favorites ---
 
-    fun toggleFavorite(channelId: String) {
-        val favIds = getFavoriteIds().toMutableSet()
+    // #9: suspend + Dispatchers.IO agar tidak blokir main thread
+    suspend fun toggleFavorite(channelId: String) = withContext(Dispatchers.IO) {
+        val favIds = cachedFavoriteIds.toMutableSet()
         if (favIds.contains(channelId)) {
             favIds.remove(channelId)
         } else {
             favIds.add(channelId)
         }
         prefs.edit().putStringSet("favorites", favIds).apply()
-        loadFavorites(getAllChannels())
+        // Update cache synchronously (sudah di IO thread)
+        cachedFavoriteIds = favIds
+        // Emit ke StateFlow harus di-dispatch ke main thread konteks
+        refreshFavoritesCache()
     }
 
-    fun isFavorite(channelId: String): Boolean = getFavoriteIds().contains(channelId)
+    // #3: Baca dari cache, bukan SharedPreferences
+    fun isFavorite(channelId: String): Boolean = cachedFavoriteIds.contains(channelId)
 
-    private fun getFavoriteIds(): Set<String> =
+    private fun loadFavoriteIds(): Set<String> =
         prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
-    private fun loadFavorites(allChannels: List<Channel>) {
-        val favIds = getFavoriteIds()
-        _favorites.value = allChannels
+    private fun refreshFavoritesCache() {
+        // Pastikan cache favoriteIds sudah diisi
+        if (cachedFavoriteIds.isEmpty()) {
+            cachedFavoriteIds = loadFavoriteIds()
+        }
+        val favIds = cachedFavoriteIds
+        _favorites.value = cachedAllChannels
             .filter { favIds.contains(it.id) }
             .map { it.copy(isFavorite = true) }
     }
@@ -98,7 +124,7 @@ class ChannelRepository(private val context: Context) {
     fun enrichWithFavorite(channel: Channel): Channel =
         channel.copy(isFavorite = isFavorite(channel.id))
 
-    // --- Recently watched (menggunakan String ID) ---
+    // --- Recently watched ---
 
     fun getLastWatched(): List<String> {
         val raw = prefs.getString("last_watched", "") ?: ""
@@ -106,11 +132,16 @@ class ChannelRepository(private val context: Context) {
         else raw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
 
+    // #1: Lookup O(1) via Map, tidak scan linear List
+    fun getRecentChannels(): List<Channel> {
+        return getLastWatched().mapNotNull { id -> channelById[id] }
+    }
+
     fun addToLastWatched(channelId: String) {
         val current = getLastWatched().toMutableList()
         current.remove(channelId)
         current.add(0, channelId)
-        val limited = current.take(30)  // Naik dari 20 → 30
+        val limited = current.take(30)
         prefs.edit().putString("last_watched", limited.joinToString(",")).apply()
     }
 

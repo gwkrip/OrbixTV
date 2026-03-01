@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Left accent border -->
+    <item>
+        <shape>
+            <solid android:color="#FFAA44" />
+        </shape>
+    </item>
+    <!-- Background dengan offset kiri 4dp -->
+    <item android:left="4dp">
+        <shape>
+            <solid android:color="#2A1F0A" />
+        </shape>
+    </item>
+</layer-list>

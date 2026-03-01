@@ -11,16 +11,33 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- #12: Header dengan jumlah favorit -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp"
             android:layout_marginTop="24dp"
-            android:layout_marginBottom="12dp"
-            android:text="❤  Favorit"
-            android:textColor="@color/white"
-            android:textSize="28sp"
-            android:fontFamily="sans-serif-black" />
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="❤ Favorit"
+                android:textColor="@color/white"
+                android:textSize="28sp"
+                android:fontFamily="sans-serif-black" />
+
+            <TextView
+                android:id="@+id/tv_favorites_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+        </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_favorites"

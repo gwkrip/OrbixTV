@@ -41,7 +41,7 @@
             android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Kembali" />
+            android:contentDescription="@string/back" />
 
         <ImageView
             android:id="@+id/iv_channel_logo"
@@ -77,17 +77,20 @@
                 android:src="@drawable/ic_sleep_timer"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="@color/white"
-                android:contentDescription="Sleep Timer" />
+                android:contentDescription="@string/sleep_timer" />
 
             <TextView
                 android:id="@+id/tv_sleep_timer"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
+                android:minWidth="24dp"
+                android:gravity="center"
                 android:background="@color/accent_blue"
                 android:textColor="@color/white"
-                android:textSize="8sp"
-                android:paddingHorizontal="3dp"
+                android:textSize="10sp"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="2dp"
                 android:visibility="gone" />
         </FrameLayout>
 
@@ -99,7 +102,7 @@
             android:src="@drawable/ic_pip"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Picture in Picture"
+            android:contentDescription="@string/picture_in_picture"
             android:layout_marginEnd="4dp" />
 
         <ImageButton
@@ -109,7 +112,7 @@
             android:src="@drawable/ic_favorite_border"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Favorit" />
+            android:contentDescription="@string/favorite" />
 
     </LinearLayout>
 
@@ -124,11 +127,30 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Error overlay -->
-    <LinearLayout
-        android:id="@+id/error_layout"
+    <!-- #11: Overlay posisi channel (misal "3 / 120") saat navigasi remote -->
+    <TextView
+        android:id="@+id/tv_channel_position"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="8dp"
+        android:text="1 / 120"
+        android:textColor="@color/white"
+        android:textSize="15sp"
+        android:fontFamily="sans-serif-medium"
+        android:background="#AA000000"
+        android:visibility="gone"
+        android:layout_marginBottom="80dp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Error overlay -->
+    <!-- #1: layout match_parent + gravity center agar tombol Back selalu terlihat -->
+    <LinearLayout
+        android:id="@+id/error_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:orientation="vertical"
         android:gravity="center"
         android:visibility="gone"
@@ -137,18 +159,30 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- #1: Tombol Back selalu ada saat error — user tidak terjebak -->
+        <ImageButton
+            android:id="@+id/btn_error_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginBottom="24dp"
+            android:src="@drawable/ic_arrow_back"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="#AAFFFFFF"
+            android:contentDescription="@string/back" />
+
         <ImageView
             android:layout_width="64dp"
             android:layout_height="64dp"
             android:src="@drawable/ic_signal_cellular_off"
-            android:tint="#AAFFFFFF" />
+            android:tint="#AAFFFFFF"
+            android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/tv_error"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="Gagal memuat stream"
+            android:text="@string/error_stream"
             android:textColor="#AAFFFFFF"
             android:textSize="14sp"
             android:gravity="center"
@@ -159,7 +193,7 @@
             android:layout_width="wrap_content"
             android:layout_height="44dp"
             android:layout_marginTop="16dp"
-            android:text="Coba Lagi"
+            android:text="@string/retry"
             android:backgroundTint="@color/accent_blue"
             android:textColor="@color/white"
             android:paddingHorizontal="24dp" />

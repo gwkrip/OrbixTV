@@ -1,17 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OrbixTV</string>
+    <string name="app_tagline">Tontonan Tanpa Batas</string>
     <string name="tab_home">Beranda</string>
     <string name="tab_favorites">Favorit</string>
     <string name="tab_recent">Terkini</string>
+
+    <!-- Loading / status -->
     <string name="loading">Memuat...</string>
     <string name="error_stream">Gagal memuat stream</string>
     <string name="retry">Coba Lagi</string>
     <string name="live">LIVE</string>
+
+    <!-- Home -->
+    <string name="search_hint">Cari saluran…</string>
+    <string name="search_hint_tv">Cari saluran atau grup…</string>
+    <string name="playlist_warning">⚠️ Menggunakan playlist bawaan</string>
+    <string name="playlist_warning_tv">⚠️ Menggunakan playlist bawaan (URL gagal)</string>
+    <string name="settings_description">Pengaturan Playlist</string>
+    <string name="category_label">KATEGORI</string>
+    <string name="select_category_hint">Pilih kategori untuk melihat saluran</string>
+
+    <!-- Favorites -->
+    <string name="favorites_title">❤ Favorit</string>
+    <string name="favorites_empty_icon">💔</string>
+    <string name="favorites_empty_title">Belum ada favorit</string>
+    <string name="favorites_empty_hint">Tap ♥ saat menonton untuk menambahkan</string>
+
+    <!-- Recent -->
+    <string name="recent_title">🕐 Terakhir Ditonton</string>
+    <string name="recent_empty_title">Belum ada riwayat</string>
+    <string name="recent_empty_hint">Mulai menonton saluran TV favoritmu</string>
+    <string name="clear_history">Hapus riwayat</string>
+
+    <!-- Player -->
     <string name="playlist_settings">Pengaturan Playlist</string>
     <string name="sleep_timer">Sleep Timer</string>
     <string name="picture_in_picture">Picture in Picture</string>
+    <string name="favorite">Favorit</string>
+    <string name="back">Kembali</string>
+    <string name="prev_channel">Saluran sebelumnya</string>
+    <string name="next_channel">Saluran berikutnya</string>
+
+    <!-- Group item -->
+    <string name="expand_group">Perluas grup</string>
+    <string name="channels_count_format">%d saluran</string>
+
+    <!-- Playlist settings -->
     <string name="playlist_url_hint">https://example.com/playlist.m3u</string>
     <string name="apply_playlist">Terapkan Playlist</string>
     <string name="reset_playlist">Reset ke Playlist Bawaan</string>
+    <string name="active_source_format">Sumber aktif: %s</string>
+    <string name="source_default">Playlist bawaan</string>
+    <string name="section_external_url">📡  URL Playlist M3U Eksternal</string>
+    <string name="desc_external_url">Masukkan URL file .m3u atau .m3u8 dari internet. Aplikasi akan mengunduh dan menggunakan playlist tersebut.</string>
+    <string name="tips_title">💡  Tips Format URL</string>
+    <string name="tips_content">• File .m3u atau .m3u8 yang dapat diakses publik\n• URL dari layanan IPTV berbayar (Xtream Codes, dll.)\n• GitHub raw file URL\n• Google Drive direct link\n\nJika URL gagal dimuat, aplikasi akan otomatis kembali ke playlist bawaan.</string>
+
+    <!-- Splash -->
+    <string name="app_version">v1.2.2</string>
 </resources>

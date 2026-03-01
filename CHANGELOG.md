@@ -1,5 +1,31 @@
 # OrbixTV Changelog
 
+## v1.2.2 — 2026-03-01
+
+### 🐛 UI / UX Fixes
+
+#### 1. Konten tidak tertutup BottomNavigationView
+- `rv_favorites` dan `rv_recent` kini memiliki `paddingBottom="72dp"` + `clipToPadding="false"` sehingga item terakhir tidak tersembunyi di belakang bottom nav.
+
+#### 2. Konsistensi corner radius pada card
+- Dibuat drawable baru `bg_card_rounded.xml` (radius 10dp) dan diterapkan ke seluruh card di `activity_playlist_settings.xml` (`tv_current_source`, `tv_error`, tips card) agar konsisten dengan desain `item_channel.xml`.
+
+#### 3. Sleep timer badge — ruang teks lebih cukup
+- `tv_sleep_timer` kini memiliki `minWidth="24dp"`, `gravity="center"`, `paddingHorizontal="5dp"`, dan `paddingVertical="2dp"` sehingga teks 2 digit (misal "90m") tidak terpotong.
+
+#### 4. Panel search tidak lagi overlap dengan panel grup
+- Di `fragment_home.xml`, `rv_groups` dan `rv_search` sekarang dikelola dalam satu `LinearLayout` container (`search_panel`) yang di-toggle visibility-nya secara atomik — mencegah bug keduanya tampil bersamaan.
+
+#### 5. Aksesibilitas: `contentDescription` pada panah grup
+- `iv_arrow` di `item_group.xml` kini memiliki `contentDescription="@string/expand_group"` agar TalkBack dapat membacanya dengan benar.
+
+#### 6. Tombol prev/next channel di player controls
+- `custom_player_controls.xml` kini memiliki `btn_prev_channel` (kiri play) dan `btn_next_channel` (kanan play) sehingga pengguna dapat berpindah saluran tanpa kembali ke HomeFragment.
+
+#### 7. String hardcoded dipindahkan ke `strings.xml`
+- Seluruh string literal di layout (label, hint, contentDescription, teks UI) kini menggunakan `@string/` reference untuk memudahkan lokalisasi dan A/B test copy di masa depan.
+
+
 ## v1.1.0 — 2026-03-01
 
 ### 🐛 Bug Fixes (Patches)

@@ -51,8 +51,30 @@ class FavoritesFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.favorites.collectLatest { favs ->
                 adapter.submitList(favs)
-                binding.emptyState.visibility = if (favs.isEmpty()) View.VISIBLE else View.GONE
-                binding.rvFavorites.visibility = if (favs.isEmpty()) View.GONE else View.VISIBLE
+                // #12: Update jumlah
+                binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
+                // #13: Animasi fade transisi empty state ↔ list
+                val isEmpty = favs.isEmpty()
+                if (isEmpty && binding.rvFavorites.visibility == View.VISIBLE) {
+                    binding.rvFavorites.animate().alpha(0f).setDuration(200)
+                        .withEndAction {
+                            binding.rvFavorites.visibility = View.GONE
+                            binding.emptyState.alpha = 0f
+                            binding.emptyState.visibility = View.VISIBLE
+                            binding.emptyState.animate().alpha(1f).setDuration(200).start()
+                        }.start()
+                } else if (!isEmpty && binding.emptyState.visibility == View.VISIBLE) {
+                    binding.emptyState.animate().alpha(0f).setDuration(200)
+                        .withEndAction {
+                            binding.emptyState.visibility = View.GONE
+                            binding.rvFavorites.alpha = 0f
+                            binding.rvFavorites.visibility = View.VISIBLE
+                            binding.rvFavorites.animate().alpha(1f).setDuration(200).start()
+                        }.start()
+                } else {
+                    binding.emptyState.visibility = if (isEmpty) View.VISIBLE else View.GONE
+                    binding.rvFavorites.visibility = if (isEmpty) View.GONE else View.VISIBLE
+                }
             }
         }
     }

@@ -52,12 +52,8 @@ class ChannelAdapter(
                 binding.ivLogo.setImageResource(R.drawable.ic_tv_placeholder)
             }
 
-            val streamType = when {
-                channel.url.contains(".mpd", ignoreCase = true) -> "DASH"
-                channel.url.contains(".m3u8", ignoreCase = true) -> "HLS"
-                else -> "LIVE"
-            }
-            binding.tvStreamType.text = streamType
+            // #10: Gunakan streamType yang sudah dihitung saat parsing — tidak komputasi ulang
+            binding.tvStreamType.text = channel.streamType
 
             binding.root.setOnClickListener { onChannelClick(channel) }
 

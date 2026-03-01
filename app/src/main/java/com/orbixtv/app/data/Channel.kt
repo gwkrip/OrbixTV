@@ -10,7 +10,9 @@ data class Channel(
     val licenseType: String = "",
     val licenseKey: String = "",
     val referer: String = "",
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    // Dihitung SEKALI saat parsing, tidak diulang setiap bind()
+    val streamType: String = "LIVE"
 )
 
 data class ChannelGroup(

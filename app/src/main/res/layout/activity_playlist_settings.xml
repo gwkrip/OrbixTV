@@ -26,13 +26,13 @@
             android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:tint="@color/white"
-            android:contentDescription="Kembali" />
+            android:contentDescription="@string/back" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:text="Pengaturan Playlist"
+            android:text="@string/playlist_settings"
             android:textColor="@color/white"
             android:textSize="18sp"
             android:fontFamily="sans-serif-medium" />
@@ -63,14 +63,14 @@
                 android:text="Sumber aktif: Playlist bawaan"
                 android:textColor="@color/accent_blue"
                 android:textSize="13sp"
-                android:background="@color/bg_card"
+                android:background="@drawable/bg_card_rounded"
                 android:layout_marginBottom="24dp" />
 
             <!-- Section: URL Eksternal -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📡  URL Playlist M3U Eksternal"
+                android:text="@string/section_external_url"
                 android:textColor="@color/white"
                 android:textSize="15sp"
                 android:fontFamily="sans-serif-medium"
@@ -79,29 +79,31 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Masukkan URL file .m3u atau .m3u8 dari internet. Aplikasi akan mengunduh dan menggunakan playlist tersebut."
+                android:text="@string/desc_external_url"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 android:layout_marginBottom="12dp" />
 
+            <!-- #7: Card-style dengan rounded corners + focus indicator -->
             <EditText
                 android:id="@+id/et_playlist_url"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
-                android:hint="https://example.com/playlist.m3u"
+                android:hint="@string/playlist_url_hint"
                 android:inputType="textUri"
                 android:textColor="@color/white"
                 android:textColorHint="@color/text_hint"
-                android:background="@color/bg_card"
-                android:paddingHorizontal="14dp"
+                android:background="@drawable/bg_input_field"
+                android:paddingHorizontal="16dp"
                 android:textSize="14sp"
+                android:singleLine="true"
                 android:layout_marginBottom="12dp" />
 
             <Button
                 android:id="@+id/btn_apply"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:text="Terapkan Playlist"
+                android:text="@string/apply_playlist"
                 android:backgroundTint="@color/accent_blue"
                 android:textColor="@color/white"
                 android:layout_marginBottom="12dp" />
@@ -110,7 +112,7 @@
                 android:id="@+id/btn_reset"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:text="Reset ke Playlist Bawaan"
+                android:text="@string/reset_playlist"
                 android:backgroundTint="@color/bg_card"
                 android:textColor="@color/text_secondary"
                 android:layout_marginBottom="16dp" />
@@ -132,14 +134,14 @@
                 android:padding="12dp"
                 android:textColor="#FFAA44"
                 android:textSize="13sp"
-                android:background="@color/bg_card"
+                android:background="@drawable/bg_card_rounded"
                 android:visibility="gone" />
 
             <!-- Tips section -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="💡  Tips Format URL"
+                android:text="@string/tips_title"
                 android:textColor="@color/white"
                 android:textSize="15sp"
                 android:fontFamily="sans-serif-medium"
@@ -149,12 +151,12 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="• File .m3u atau .m3u8 yang dapat diakses publik\n• URL dari layanan IPTV berbayar (Xtream Codes, dll.)\n• GitHub raw file URL\n• Google Drive direct link\n\nJika URL gagal dimuat, aplikasi akan otomatis kembali ke playlist bawaan."
+                android:text="@string/tips_content"
                 android:textColor="@color/text_secondary"
                 android:textSize="13sp"
                 android:lineSpacingMultiplier="1.5"
                 android:padding="12dp"
-                android:background="@color/bg_card" />
+                android:background="@drawable/bg_card_rounded" />
 
         </LinearLayout>
     </ScrollView>
