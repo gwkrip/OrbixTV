@@ -9,6 +9,7 @@
     android:layout_marginVertical="4dp"
     android:focusable="true"
     android:clickable="true"
+    android:defaultFocusHighlightEnabled="false"
     app:cardBackgroundColor="@color/bg_card"
     app:cardCornerRadius="10dp"
     app:cardElevation="0dp">

@@ -76,6 +76,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Recent / History ---
 
+    fun getAllChannels(): List<Channel> = repository.getAllChannels()
+
     fun getRecentChannels(): List<Channel> {
         val ids = repository.getLastWatched()
         val allChannels = repository.getAllChannels()

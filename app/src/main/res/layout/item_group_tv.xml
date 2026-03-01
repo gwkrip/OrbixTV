@@ -9,6 +9,7 @@
     android:paddingHorizontal="20dp"
     android:focusable="true"
     android:clickable="true"
+    android:defaultFocusHighlightEnabled="false"
     android:background="?attr/selectableItemBackground">
 
     <TextView

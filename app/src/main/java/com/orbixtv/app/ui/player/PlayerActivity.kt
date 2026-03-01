@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.CountDownTimer
 import android.util.Log
 import android.util.Rational
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -22,7 +23,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -32,6 +32,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import com.bumptech.glide.Glide
 import com.orbixtv.app.R
+import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
@@ -40,14 +41,17 @@ import com.orbixtv.app.ui.MainViewModel
 class PlayerActivity : AppCompatActivity() {
 
     companion object {
-        const val EXTRA_CHANNEL_NAME = "channel_name"
-        const val EXTRA_CHANNEL_URL  = "channel_url"
-        const val EXTRA_CHANNEL_LOGO = "channel_logo"
-        const val EXTRA_USER_AGENT   = "user_agent"
-        const val EXTRA_LICENSE_TYPE = "license_type"
-        const val EXTRA_LICENSE_KEY  = "license_key"
-        const val EXTRA_REFERER      = "referer"
-        const val EXTRA_CHANNEL_ID   = "channel_id"
+        const val EXTRA_CHANNEL_NAME       = "channel_name"
+        const val EXTRA_CHANNEL_URL        = "channel_url"
+        const val EXTRA_CHANNEL_LOGO       = "channel_logo"
+        const val EXTRA_USER_AGENT         = "user_agent"
+        const val EXTRA_LICENSE_TYPE       = "license_type"
+        const val EXTRA_LICENSE_KEY        = "license_key"
+        const val EXTRA_REFERER            = "referer"
+        const val EXTRA_CHANNEL_ID         = "channel_id"
+        // Navigasi remote: index channel saat ini dalam daftar semua channel
+        const val EXTRA_CHANNEL_INDEX      = "channel_index"
+        const val EXTRA_CHANNEL_COUNT      = "channel_count"
         private const val TAG = "PlayerActivity"
     }
 
@@ -68,6 +72,15 @@ class PlayerActivity : AppCompatActivity() {
     private var sleepTimer: CountDownTimer? = null
     private var sleepTimerMinutesLeft = 0
 
+    // Auto-hide top bar
+    private val hideUiHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val hideUiRunnable = Runnable { hideTopBar() }
+    private val UI_HIDE_DELAY_MS = 4_000L
+
+    // Channel list untuk navigasi remote (channel up/down)
+    private var allChannels: List<Channel> = emptyList()
+    private var currentChannelIndex = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -86,6 +99,21 @@ class PlayerActivity : AppCompatActivity() {
         licenseKey  = intent.getStringExtra(EXTRA_LICENSE_KEY)  ?: ""
         referer     = intent.getStringExtra(EXTRA_REFERER)      ?: ""
         channelId   = intent.getStringExtra(EXTRA_CHANNEL_ID)   ?: ""
+
+        // Muat daftar channel untuk navigasi remote.
+        // EXTRA_CHANNEL_INDEX dikirim dari Fragment (data sudah pasti ada di sana).
+        // Di PlayerActivity, ViewModel-nya adalah instance berbeda, jadi kita coba
+        // getAllChannels() dulu; jika kosong (belum load), trigger loadPlaylist() dan
+        // gunakan index dari Intent sebagai posisi awal.
+        val intentIndex = intent.getIntExtra(EXTRA_CHANNEL_INDEX, -1)
+        allChannels = viewModel.getAllChannels()
+        if (allChannels.isEmpty()) {
+            viewModel.loadPlaylist()
+            currentChannelIndex = intentIndex
+        } else {
+            currentChannelIndex = if (intentIndex >= 0) intentIndex
+                                  else allChannels.indexOfFirst { it.id == channelId }
+        }
 
         setupUI()
         setupPlayer()
@@ -272,8 +300,133 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     // ========================
-    // ✅ FITUR: Picture-in-Picture
+    // ✅ TV REMOTE: KeyEvent Handler
     // ========================
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Setiap tombol remote ditekan → tampilkan top bar sementara
+        showTopBarTemporarily()
+        return when (keyCode) {
+
+            // Play / Pause — tombol media remote atau tombol tengah D-pad (saat player fokus)
+            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                player?.play()
+                showToastBrief("▶ Play")
+                true
+            }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                player?.pause()
+                showToastBrief("⏸ Pause")
+                true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER -> {
+                player?.let {
+                    if (it.isPlaying) {
+                        it.pause()
+                        showToastBrief("⏸ Pause")
+                    } else {
+                        it.play()
+                        showToastBrief("▶ Play")
+                    }
+                }
+                true
+            }
+
+            // Stop
+            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                player?.stop()
+                showToastBrief("⏹ Stop")
+                true
+            }
+
+            // Channel Up — navigasi ke channel berikutnya
+            KeyEvent.KEYCODE_CHANNEL_UP,
+            KeyEvent.KEYCODE_PAGE_UP -> {
+                navigateChannel(+1)
+                true
+            }
+
+            // Channel Down — navigasi ke channel sebelumnya
+            KeyEvent.KEYCODE_CHANNEL_DOWN,
+            KeyEvent.KEYCODE_PAGE_DOWN -> {
+                navigateChannel(-1)
+                true
+            }
+
+            // Back / Menu — keluar dari player
+            KeyEvent.KEYCODE_BACK -> {
+                finish()
+                true
+            }
+
+            // Menu / Info — tampilkan sleep timer dialog
+            KeyEvent.KEYCODE_MENU -> {
+                showSleepTimerDialog()
+                true
+            }
+
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    /**
+     * Navigasi channel: offset = +1 (naik) atau -1 (turun).
+     * Wrap-around: setelah channel terakhir kembali ke pertama, dan sebaliknya.
+     */
+    private fun navigateChannel(offset: Int) {
+        // Refresh list jika belum terisi (loadPlaylist async baru selesai)
+        if (allChannels.isEmpty()) {
+            allChannels = viewModel.getAllChannels()
+            currentChannelIndex = allChannels.indexOfFirst { it.id == channelId }
+        }
+        if (allChannels.isEmpty()) {
+            showToastBrief("Daftar channel belum tersedia")
+            return
+        }
+        val nextIndex = when {
+            currentChannelIndex < 0 -> 0
+            else -> (currentChannelIndex + offset + allChannels.size) % allChannels.size
+        }
+        val nextChannel = allChannels[nextIndex]
+        currentChannelIndex = nextIndex
+
+        // Update field aktif
+        channelName = nextChannel.name
+        channelUrl  = nextChannel.url
+        channelLogo = nextChannel.logoUrl
+        userAgent   = nextChannel.userAgent
+        licenseType = nextChannel.licenseType
+        licenseKey  = nextChannel.licenseKey
+        referer     = nextChannel.referer
+        channelId   = nextChannel.id
+
+        viewModel.onChannelWatched(channelId)
+
+        // Update UI info channel
+        binding.tvChannelName.text = channelName
+        if (channelLogo.isNotEmpty()) {
+            Glide.with(this).load(channelLogo)
+                .placeholder(R.drawable.ic_tv_placeholder)
+                .error(R.drawable.ic_tv_placeholder)
+                .into(binding.ivChannelLogo)
+        } else {
+            binding.ivChannelLogo.setImageResource(R.drawable.ic_tv_placeholder)
+        }
+        updateFavoriteIcon()
+
+        // Muat stream baru
+        setupPlayer()
+        showTopBarTemporarily()
+        showToastBrief("📺 ${channelName}")
+    }
+
+    private fun showToastBrief(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+
 
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -359,6 +512,33 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     // ========================
+    // Auto-hide top bar
+    // ========================
+
+    private fun showTopBarTemporarily() {
+        hideUiHandler.removeCallbacks(hideUiRunnable)
+        binding.topBar.animate().cancel()
+        binding.topBar.visibility = View.VISIBLE
+        binding.topBar.alpha = 1f
+        hideUiHandler.postDelayed(hideUiRunnable, UI_HIDE_DELAY_MS)
+    }
+
+    private fun hideTopBar() {
+        binding.topBar.animate()
+            .alpha(0f)
+            .setDuration(400)
+            .withEndAction { binding.topBar.visibility = View.GONE }
+            .start()
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+            showTopBarTemporarily()
+        }
+        return super.onTouchEvent(event)
+    }
+
+    // ========================
     // UI helpers
     // ========================
 
@@ -390,6 +570,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         player?.play()
+        showTopBarTemporarily()
     }
 
     override fun onPause() {
@@ -401,6 +582,7 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        hideUiHandler.removeCallbacks(hideUiRunnable)
         sleepTimer?.cancel()
         player?.release()
         player = null

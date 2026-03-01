@@ -68,6 +68,8 @@ class RecentFragment : Fragment() {
 
     private fun openPlayer(channel: Channel) {
         viewModel.onChannelWatched(channel.id)
+        val allChannels = viewModel.getAllChannels()
+        val channelIndex = allChannels.indexOfFirst { it.id == channel.id }
         startActivity(Intent(requireContext(), PlayerActivity::class.java).apply {
             putExtra(PlayerActivity.EXTRA_CHANNEL_NAME, channel.name)
             putExtra(PlayerActivity.EXTRA_CHANNEL_URL, channel.url)
@@ -77,6 +79,8 @@ class RecentFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_LICENSE_KEY, channel.licenseKey)
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
+            putExtra(PlayerActivity.EXTRA_CHANNEL_COUNT, allChannels.size)
         })
     }
 
