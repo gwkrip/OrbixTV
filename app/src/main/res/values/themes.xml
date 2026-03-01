@@ -17,11 +17,11 @@
         <item name="android:navigationBarColor">@color/bg_dark</item>
     </style>
 
+    <!-- Base player theme (API 23+), windowLayoutInDisplayCutoutMode diletakkan di values-v27/themes.xml -->
     <style name="Theme.OrbixTV.Player" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowBackground">#000000</item>
         <item name="android:statusBarColor">#00000000</item>
         <item name="android:navigationBarColor">#000000</item>
         <item name="android:windowTranslucentStatus">false</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 </resources>

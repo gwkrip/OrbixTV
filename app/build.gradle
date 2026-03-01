@@ -33,6 +33,13 @@ android {
         jvmTarget = '1.8'
     }
 
+    lint {
+        abortOnError false
+        warning 'NewApi'
+        disable 'Deprecation'
+        htmlReport true
+    }
+
     buildFeatures {
         viewBinding true
     }

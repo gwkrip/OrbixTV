@@ -41,7 +41,7 @@ object M3uParser {
             var pendingExtInf: String? = null
 
             while (reader.readLine().also { line = it } != null) {
-                val trimmed = line!!.trim()
+                val trimmed = line?.trim() ?: continue
                 when {
                     trimmed.startsWith("#EXTINF:") -> {
                         pendingExtInf = trimmed
