@@ -58,12 +58,11 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- #15: Versi app di pojok bawah splash -->
+    <!-- #15: Versi app di pojok bawah splash — diisi programmatically via BuildConfig.VERSION_NAME -->
     <TextView
         android:id="@+id/tv_version"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/app_version"
         android:textColor="@color/text_hint"
         android:textSize="12sp"
         android:layout_marginBottom="24dp"

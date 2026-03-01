@@ -58,5 +58,5 @@
     <string name="tips_content">• File .m3u atau .m3u8 yang dapat diakses publik\n• URL dari layanan IPTV berbayar (Xtream Codes, dll.)\n• GitHub raw file URL\n• Google Drive direct link\n\nJika URL gagal dimuat, aplikasi akan otomatis kembali ke playlist bawaan.</string>
 
     <!-- Splash -->
-    <string name="app_version">v1.2.2</string>
+    <!-- Versi ditampilkan dinamis via BuildConfig.VERSION_NAME di SplashActivity -->
 </resources>
