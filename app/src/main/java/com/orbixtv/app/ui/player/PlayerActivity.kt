@@ -264,13 +264,8 @@ class PlayerActivity : AppCompatActivity() {
                         retryCount++
                         Log.d(TAG, "Auto-retry $retryCount/$MAX_AUTO_RETRY")
                         retryHandler.postDelayed({
-                            // Gunakan player (field) bukan exo (closure) — player bisa diganti
-                            // oleh consumePreBuffer() setelah retry dijadwal
                             if (!isFinishing) {
-                                player?.stop()
-                                player?.prepare()
-                                player?.play()
-                                showLoading(true)
+                                setupPlayer()
                             }
                         }, 2_000L * retryCount)
                     } else {
@@ -299,7 +294,9 @@ class PlayerActivity : AppCompatActivity() {
                 if (licenseType.isNotEmpty() && licenseKey.isNotEmpty()) {
                     buildDashWithClearKey(uri, dataSourceFactory)
                 } else {
-                    DashMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
+                    DashMediaSource.Factory(dataSourceFactory).createMediaSource(
+                        MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
+                    )
                 }
             }
             M3uParser.StreamType.HLS -> {
