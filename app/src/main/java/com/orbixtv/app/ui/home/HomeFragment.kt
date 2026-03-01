@@ -130,10 +130,10 @@ class HomeFragment : Fragment() {
                     }
                 } else {
                     if (isSearchActive) {
-                        binding.rvSearch.visibility = View.VISIBLE
+                        binding.searchPanel?.visibility = View.VISIBLE
                         binding.rvGroups.visibility = View.GONE
                     } else {
-                        binding.rvSearch.visibility = View.GONE
+                        binding.searchPanel?.visibility = View.GONE
                         binding.rvGroups.visibility = View.VISIBLE
                         binding.tvSearchCount?.visibility = View.GONE
                     }

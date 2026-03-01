@@ -142,6 +142,12 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnSleepTimer.setOnClickListener { showSleepTimerDialog() }
         binding.btnPip.setOnClickListener { enterPipMode() }
 
+        // Tombol prev/next channel di custom_player_controls
+        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_prev_channel)
+            ?.setOnClickListener { navigateChannel(-1) }
+        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_next_channel)
+            ?.setOnClickListener { navigateChannel(+1) }
+
         updateFavoriteIcon()
         updateLiveBadge()
     }
@@ -443,6 +449,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun showToastBrief(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
+
+    private fun enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val params = PictureInPictureParams.Builder()
                 .setAspectRatio(Rational(16, 9))
