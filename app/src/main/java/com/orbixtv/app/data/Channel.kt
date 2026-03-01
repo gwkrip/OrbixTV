@@ -10,7 +10,7 @@ data class Channel(
     val licenseType: String = "",
     val licenseKey: String = "",
     val referer: String = "",
-    val isFavorite: Boolean = false  // passed in from ChannelRepository based on SharedPreferences
+    val isFavorite: Boolean = false
 )
 
 data class ChannelGroup(

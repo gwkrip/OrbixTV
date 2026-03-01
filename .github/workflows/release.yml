@@ -1,12 +1,9 @@
 name: Build & Release
 
 on:
-  # Trigger on version tag push  →  git tag v1.2.3 && git push origin v1.2.3
   push:
     tags:
       - 'v*.*.*'
-
-  # Allow manual trigger from the Actions tab (useful for testing)
   workflow_dispatch:
     inputs:
       release_type:
@@ -19,46 +16,31 @@ on:
           - debug
 
 jobs:
-  # ─────────────────────────────────────────────
-  # JOB 1 — Build signed APK & AAB
-  # ─────────────────────────────────────────────
   build:
     name: Build APK & AAB
     runs-on: ubuntu-latest
-
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       version_code: ${{ steps.version.outputs.version_code }}
 
     steps:
-      # 1. Checkout source
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history needed for version tagging
+          fetch-depth: 0
 
-      # 2. Set up JDK 17 (required for AGP 8+)
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. Setup Gradle — pins to wrapper version, handles caching
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: wrapper
 
-      # 4. Validate wrapper checksum (security: prevents tampered wrapper attacks)
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v4
+      - uses: gradle/actions/wrapper-validation@v4
 
-      # 5. Grant execute permission to gradlew
-      - name: Grant Gradle wrapper execute permission
-        run: chmod +x gradlew
+      - run: chmod +x gradlew
 
-      # 4. Extract version info from tag or build.gradle
       - name: Extract version info
         id: version
         run: |
@@ -70,21 +52,17 @@ jobs:
           VERSION_CODE=$(grep versionCode app/build.gradle | awk '{print $2}')
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "📦 Building version $VERSION_NAME ($VERSION_CODE)"
 
-      # 5. Bump versionName in build.gradle to match the tag
       - name: Sync versionName with tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           VERSION="${{ steps.version.outputs.version_name }}"
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" app/build.gradle
 
-      # 6. Decode keystore from repository secret
       - name: Decode keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/keystore.jks
 
-      # 8. Build signed release APK
       - name: Build signed release APK
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
@@ -97,10 +75,8 @@ jobs:
             -Pandroid.injected.signing.store.password="$STORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
-            --no-daemon \
-            --stacktrace
+            --no-daemon --stacktrace
 
-      # 9. Build signed release AAB (for Play Store)
       - name: Build signed release AAB
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
@@ -113,10 +89,8 @@ jobs:
             -Pandroid.injected.signing.store.password="$STORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
-            --no-daemon \
-            --stacktrace
+            --no-daemon --stacktrace
 
-      # 10. Rename artifacts to include version
       - name: Rename artifacts
         run: |
           VERSION="${{ steps.version.outputs.version_name }}"
@@ -125,54 +99,45 @@ jobs:
           mv app/build/outputs/bundle/release/app-release.aab \
              app/build/outputs/bundle/release/OrbixTV-v${VERSION}.aab
 
-      # 11. Upload APK artifact (available for all jobs & download from Actions tab)
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: OrbixTV-APK-v${{ steps.version.outputs.version_name }}
           path: app/build/outputs/apk/release/OrbixTV-v*.apk
           retention-days: 30
 
-      # 12. Upload AAB artifact
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: OrbixTV-AAB-v${{ steps.version.outputs.version_name }}
           path: app/build/outputs/bundle/release/OrbixTV-v*.aab
           retention-days: 30
 
-      # 13. Securely delete keystore from runner
       - name: Clean up keystore
         if: always()
         run: rm -f ${{ github.workspace }}/keystore.jks
 
-  # ─────────────────────────────────────────────
-  # JOB 2 — Create GitHub Release (tag pushes only)
-  # ─────────────────────────────────────────────
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
-      contents: write   # required to create releases and upload assets
+      contents: write
 
     steps:
-      # 1. Download APK artifact from build job
-      - name: Download APK artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
         with:
           name: OrbixTV-APK-v${{ needs.build.outputs.version_name }}
           path: artifacts/
 
-      # 2. Download AAB artifact from build job
-      - name: Download AAB artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: OrbixTV-AAB-v${{ needs.build.outputs.version_name }}
           path: artifacts/
 
-      # 3. Generate changelog from commits since previous tag
       - name: Generate changelog
         id: changelog
         run: |
@@ -187,9 +152,7 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
-      # 4. Create GitHub Release and upload assets
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           name: OrbixTV v${{ needs.build.outputs.version_name }}
           tag_name: ${{ github.ref_name }}
@@ -210,7 +173,7 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             ---
-            > ⚠️ **Installation:** Enable *Install from unknown sources* in Android Settings before installing the APK.
+            > ⚠️ Enable *Install from unknown sources* before installing the APK.
           files: |
             artifacts/OrbixTV-v*.apk
             artifacts/OrbixTV-v*.aab

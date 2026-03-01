@@ -58,9 +58,6 @@ class ChannelRepository(private val context: Context) {
             .map { it.copy(isFavorite = true) }
     }
 
-    /**
-     * Returns a copy of the given channel with [isFavorite] set correctly from SharedPreferences.
-     */
     fun enrichWithFavorite(channel: Channel): Channel =
         channel.copy(isFavorite = isFavorite(channel.id))
 

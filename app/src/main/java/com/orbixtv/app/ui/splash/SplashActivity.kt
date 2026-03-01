@@ -31,8 +31,7 @@ class SplashActivity : AppCompatActivity() {
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Animate logo
-        binding.ivLogo.alpha = 0f
+        binding.ivLogo.alpha    = 0f
         binding.tvAppName.alpha = 0f
         binding.tvTagline.alpha = 0f
 
@@ -45,7 +44,6 @@ class SplashActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Prevent memory leak: remove callback if Activity is destroyed before delay fires
         handler.removeCallbacks(launchRunnable)
     }
 }

@@ -25,6 +25,7 @@ class HomeFragment : Fragment() {
 
     private lateinit var groupAdapter: GroupAdapter
     private lateinit var searchAdapter: ChannelAdapter
+    private var isSearchActive = false
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -35,7 +36,6 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         setupAdapters()
         setupSearch()
         observeData()
@@ -54,8 +54,6 @@ class HomeFragment : Fragment() {
             adapter = searchAdapter
         }
     }
-
-    private var isSearchActive = false
 
     private fun setupSearch() {
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
@@ -98,8 +96,7 @@ class HomeFragment : Fragment() {
                 searchAdapter.submitList(results)
                 binding.tvSearchCount.text = if (results.isEmpty()) "Tidak ditemukan"
                 else "${results.size} hasil"
-                binding.tvSearchCount.visibility =
-                    if (isSearchActive) View.VISIBLE else View.GONE
+                binding.tvSearchCount.visibility = if (isSearchActive) View.VISIBLE else View.GONE
             }
         }
     }
