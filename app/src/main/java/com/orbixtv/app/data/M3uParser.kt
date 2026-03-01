@@ -47,7 +47,7 @@ object M3uParser {
     suspend fun parseFromAssets(context: Context): List<ChannelGroup> = withContext(Dispatchers.IO) {
         try {
             // #7: Baca langsung dari InputStream tanpa .readText() ke String perantara
-            context.assets.open("playlist.m3u").use { inputStream ->
+            context.assets.open("playlist.m3u8").use { inputStream ->
                 parseFromReader(BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)))
             }
         } catch (e: Exception) {
