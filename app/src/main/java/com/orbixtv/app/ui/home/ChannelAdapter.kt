@@ -2,6 +2,7 @@ package com.orbixtv.app.ui.home
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -33,6 +34,9 @@ class ChannelAdapter(
         private val binding: ItemChannelBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
+        // FIX: cast root ke CardView dengan aman menggunakan as?
+        private val cardView: CardView? = binding.root as? CardView
+
         fun bind(channel: Channel) {
             binding.tvChannelName.text = channel.name
             binding.tvGroupName.text = channel.group
@@ -57,7 +61,7 @@ class ChannelAdapter(
 
             binding.root.setOnClickListener { onChannelClick(channel) }
 
-            // D-pad / TV focus: scale up saat fokus, kembali normal saat tidak fokus
+            // D-pad / TV focus: scale + highlight CardView saat fokus
             binding.root.setOnFocusChangeListener { _, hasFocus ->
                 val scale = if (hasFocus) 1.05f else 1f
                 binding.root.animate()
@@ -66,18 +70,14 @@ class ChannelAdapter(
                     .setDuration(150)
                     .start()
 
-                // Ganti background CardView saat fokus
-                val cardView = binding.root
-                if (hasFocus) {
-                    cardView.setCardBackgroundColor(
-                        cardView.context.getColor(R.color.bg_surface)
+                // FIX: cardElevation harus Float (8f bukan 8)
+                cardView?.let { cv ->
+                    cv.setCardBackgroundColor(
+                        cv.context.getColor(
+                            if (hasFocus) R.color.bg_surface else R.color.bg_card
+                        )
                     )
-                    cardView.cardElevation = 8f
-                } else {
-                    cardView.setCardBackgroundColor(
-                        cardView.context.getColor(R.color.bg_card)
-                    )
-                    cardView.cardElevation = 0f
+                    cv.cardElevation = if (hasFocus) 8f else 0f
                 }
             }
         }
