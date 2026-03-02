@@ -1,6 +1,7 @@
 package com.orbixtv.app.ui.home
 
 import android.app.Activity
+import android.view.animation.LinearInterpolator
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -204,12 +205,33 @@ class HomeFragment : Fragment() {
         binding.btnSettings.setOnClickListener {
             settingsLauncher.launch(Intent(requireContext(), PlaylistSettingsActivity::class.java))
         }
+
+        binding.btnRefresh.setOnClickListener {
+            if (viewModel.isLoading.value) return@setOnClickListener
+            startRefreshAnimation()
+            viewModel.loadPlaylist()
+            android.widget.Toast.makeText(requireContext(), "Memuat ulang playlist...", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startRefreshAnimation() {
+        val spin = android.view.animation.RotateAnimation(
+            0f, 360f,
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
+            android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
+        ).apply {
+            duration = 600
+            repeatCount = android.view.animation.Animation.INFINITE
+            interpolator = LinearInterpolator()
+        }
+        binding.btnRefresh.startAnimation(spin)
     }
 
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
                 binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
+                if (!loading) binding.btnRefresh.clearAnimation()
                 if (!isTvLayout) {
                     binding.rvGroups.visibility = if (loading) View.GONE else View.VISIBLE
                 }
