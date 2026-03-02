@@ -58,15 +58,6 @@ object M3uParser {
             .build()
     }
 
-    // OkHttpClient khusus untuk content-type sniffing — timeout lebih pendek
-    private val sniffClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .build()
-    }
 
     suspend fun parseFromAssets(context: Context): List<ChannelGroup> = withContext(Dispatchers.IO) {
         try {
@@ -322,28 +313,6 @@ object M3uParser {
         }
     }
 
-    /**
-     * Sniff Content-Type via HTTP HEAD request.
-     * Dipakai oleh PlayerActivity untuk URL dengan StreamType.PROGRESSIVE
-     * (tidak terdeteksi dari pola URL maupun atribut #EXTINF).
-     * Return null jika request gagal atau timeout.
-     */
-    suspend fun sniffContentType(
-        url: String,
-        userAgent: String = "",
-        referer: String = ""
-    ): StreamType? = withContext(Dispatchers.IO) {
-        try {
-            val reqBuilder = Request.Builder().url(url).head()
-            if (userAgent.isNotEmpty()) reqBuilder.header("User-Agent", userAgent)
-            if (referer.isNotEmpty())   reqBuilder.header("Referer", referer)
-
-            sniffClient.newCall(reqBuilder.build()).execute().use { response ->
-                val contentType = response.header("Content-Type") ?: return@withContext null
-                val result = mimeStringToStreamType(contentType)
-                // Hanya kembalikan jika hasilnya informatif (bukan PROGRESSIVE lagi)
-                if (result != StreamType.PROGRESSIVE) result else null
-            }
         } catch (e: Exception) {
             null
         }

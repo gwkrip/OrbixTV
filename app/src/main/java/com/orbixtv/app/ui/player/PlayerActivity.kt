@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.Rational
 import android.view.GestureDetector
@@ -21,7 +23,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -40,7 +41,6 @@ import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
-import kotlinx.coroutines.launch
 
 @UnstableApi
 class PlayerActivity : AppCompatActivity() {
@@ -55,10 +55,17 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_REFERER        = "referer"
         const val EXTRA_CHANNEL_ID     = "channel_id"
         const val EXTRA_CHANNEL_INDEX  = "channel_index"
-        // Hint MIME type dari atribut #EXTINF (type= / content-type=).
-        // Dipakai untuk channel vnd yang URL-nya tidak mengandung pola HLS/DASH.
         const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
         private const val TAG = "PlayerActivity"
+
+        // Berapa lama (ms) ExoPlayer boleh stuck di STATE_BUFFERING sebelum
+        // kita paksa pindah ke format berikutnya.
+        // 12 detik cukup untuk jaringan lambat, tidak terlalu lama untuk UX.
+        private const val BUFFERING_TIMEOUT_MS = 12_000L
+
+        // Timeout lebih lama untuk stream yang sudah terdeteksi jenisnya
+        // (HLS pasti / DASH pasti) — beri waktu lebih karena kita yakin formatnya.
+        private const val BUFFERING_TIMEOUT_KNOWN_MS = 20_000L
     }
 
     private lateinit var binding: ActivityPlayerBinding
@@ -73,38 +80,62 @@ class PlayerActivity : AppCompatActivity() {
     private var licenseKey   = ""
     private var referer      = ""
     private var channelId    = ""
-    private var mimeTypeHint = ""   // Hint vnd/mpegurl dari #EXTINF
+    private var mimeTypeHint = ""
 
     private var sleepTimer: CountDownTimer? = null
     private var sleepTimerMinutesLeft = 0
 
-    private val hideUiHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val hideUiRunnable = Runnable { hideTopBar() }
+    private val hideUiHandler    = Handler(Looper.getMainLooper())
+    private val hideUiRunnable   = Runnable { hideTopBar() }
     private val UI_HIDE_DELAY_MS = 4_000L
 
     private var allChannels: List<Channel> = emptyList()
     private var currentChannelIndex = -1
 
+    // ── Sistem fallback bertingkat ──────────────────────────────────────────
+    //
+    // MASALAH ROOT CAUSE:
+    // Channel vnd (Xtream Codes format: host:8080/live/user/pass/id.ts, dll)
+    // tidak memiliki ekstensi URL dan server sering mengembalikan Content-Type
+    // yang menyesatkan. ExoPlayer memilih format yang salah → masuk
+    // STATE_BUFFERING selamanya karena data masuk tapi tidak bisa di-parse.
+    // onPlayerError TIDAK dipanggil dalam kondisi ini → fallback tidak berjalan.
+    //
+    // SOLUSI: Buffering timeout yang memaksa pindah stage jika ExoPlayer
+    // stuck di STATE_BUFFERING melebihi BUFFERING_TIMEOUT_MS.
+    //
+    // Urutan fallback untuk stream PROGRESSIVE (ambigu):
+    //   Stage 0 → HLS tanpa MIME eksplisit (ExoPlayer sniff dari byte stream)
+    //   Stage 1 → Default / auto-detect penuh
+    //   Stage 2 → DASH
+    // ────────────────────────────────────────────────────────────────────────
+    private enum class FallbackStage { HLS, DEFAULT, DASH }
+    private var fallbackStage   = FallbackStage.HLS
+    private var isUsingFallback = false
+
+    // Handler khusus untuk buffering timeout
+    private val bufferingTimeoutHandler = Handler(Looper.getMainLooper())
+    private val bufferingTimeoutRunnable = Runnable { onBufferingTimeout() }
+
     private var retryCount = 0
     private val MAX_AUTO_RETRY = 2
-    private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val retryHandler = Handler(Looper.getMainLooper())
 
     private var preBufferPlayer: ExoPlayer? = null
-    private var preBufferIndex: Int = -1
+    private var preBufferIndex  = -1
 
-    private var isOrientationLocked = false
+    private var isOrientationLocked  = false
+    private var wasPlayingBeforePause = true
 
-    private val gestureOverlayHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val gestureOverlayHandler = Handler(Looper.getMainLooper())
     private lateinit var gestureDetector: GestureDetector
     private var audioManager: AudioManager? = null
-    private var initialVolume = 0
-    private var maxVolume = 0
+    private var initialVolume    = 0
+    private var maxVolume        = 0
     private var initialBrightness = 0f
-    private var gestureStartY = 0f
-    private var gestureStartX = 0f
-    private var isVolumeGesture = false
-
-    private var wasPlayingBeforePause = true
+    private var gestureStartY    = 0f
+    private var gestureStartX    = 0f
+    private var isVolumeGesture  = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -112,7 +143,6 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
-
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterFullscreen()
 
@@ -136,164 +166,221 @@ class PlayerActivity : AppCompatActivity() {
         setupGestureDetector()
     }
 
-    private fun setupUI() {
-        binding.tvChannelName.text = channelName
+    // ════════════════════════════════════════════════════════════════════════
+    // SETUP PLAYER — Entry point utama
+    // ════════════════════════════════════════════════════════════════════════
 
-        if (channelLogo.isNotEmpty()) {
-            Glide.with(this)
-                .load(channelLogo)
-                .placeholder(R.drawable.ic_tv_placeholder)
-                .error(R.drawable.ic_tv_placeholder)
-                .into(binding.ivChannelLogo)
-        }
-
-        binding.btnBack.setOnClickListener { finish() }
-
-        binding.btnFavorite.setOnClickListener {
-            if (channelId.isNotEmpty()) {
-                viewModel.toggleFavorite(channelId)
-                updateFavoriteIcon()
-            }
-        }
-
-        binding.btnSleepTimer.setOnClickListener { showSleepTimerDialog() }
-        binding.btnPip.setOnClickListener { enterPipMode() }
-
-        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_prev_channel)
-            ?.setOnClickListener { navigateChannel(-1) }
-        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_next_channel)
-            ?.setOnClickListener { navigateChannel(+1) }
-
-        binding.btnLockOrientation?.setOnClickListener { toggleOrientationLock() }
-
-        updateFavoriteIcon()
-        updateLiveBadge()
-    }
-
-    private fun updateLiveBadge() {
-        val isLive = currentChannelIndex >= 0 &&
-            allChannels.isNotEmpty() &&
-            allChannels[currentChannelIndex].streamType.let { it == "HLS" || it == "RTMP" }
-        val liveBadge = binding.playerView.findViewById<android.widget.TextView?>(R.id.tv_live_badge)
-        liveBadge?.visibility = if (isLive) View.VISIBLE else View.GONE
-    }
-
-    private fun updateFavoriteIcon() {
-        if (channelId.isNotEmpty() && viewModel.isFavorite(channelId)) {
-            binding.btnFavorite.setImageResource(R.drawable.ic_favorite_filled)
-        } else {
-            binding.btnFavorite.setImageResource(R.drawable.ic_favorite_border)
-        }
-    }
-
-    // ========================
-    // Player Setup
-    // ========================
-
-    /**
-     * Siapkan & putar stream.
-     *
-     * Alur deteksi tipe stream:
-     * 1. Cek mimeTypeHint dari atribut #EXTINF (type= / content-type=)
-     * 2. Cek pola URL (ekstensi, path keyword)
-     * 3. Jika masih PROGRESSIVE (ambigu) → HTTP HEAD sniff Content-Type
-     * 4. Jika sniff juga gagal → DefaultMediaSourceFactory (ExoPlayer auto-detect)
-     */
     private fun setupPlayer() {
-        if (channelUrl.isEmpty()) {
-            showError("URL stream tidak valid")
-            return
-        }
+        if (channelUrl.isEmpty()) { showError("URL stream tidak valid"); return }
 
+        // Bersihkan semua handler yang mungkin masih berjalan dari sesi sebelumnya
         retryHandler.removeCallbacksAndMessages(null)
+        cancelBufferingTimeout()
         retryCount = 0
 
         showLoading(true)
         showError(null)
 
-        // Tentukan stream type dari hint atau URL
-        val detectedType = when {
-            mimeTypeHint.isNotEmpty() -> M3uParser.mimeStringToStreamType(mimeTypeHint)
-            else                      -> M3uParser.detectStreamType(channelUrl)
-        }
+        val detectedType = resolveStreamType()
+        Log.d(TAG, "resolveStreamType=$detectedType hint='$mimeTypeHint' url=$channelUrl")
 
-        if (detectedType == M3uParser.StreamType.PROGRESSIVE) {
-            // Tipe ambigu → sniff dulu via HTTP HEAD, baru build player
-            lifecycleScope.launch {
-                val sniffed = M3uParser.sniffContentType(channelUrl, userAgent, referer)
-                Log.d(TAG, "Content-Type sniff result: $sniffed for $channelUrl")
-                buildAndStartPlayer(sniffed ?: detectedType)
-            }
+        isUsingFallback = (detectedType == M3uParser.StreamType.PROGRESSIVE)
+        fallbackStage   = FallbackStage.HLS
+
+        if (isUsingFallback) {
+            // Mulai dari HLS (format paling umum di IPTV)
+            startWithFallbackStage(FallbackStage.HLS)
         } else {
-            buildAndStartPlayer(detectedType)
+            startWithKnownType(detectedType)
         }
     }
 
-    private fun buildAndStartPlayer(streamType: M3uParser.StreamType) {
-        val httpDataSourceFactory = buildDataSourceFactory()
-        val mediaSource = buildMediaSource(channelUrl, streamType, httpDataSourceFactory)
+    /**
+     * Tentukan tipe stream dari metadata saja (tanpa I/O / HEAD request).
+     * HEAD request tidak reliable untuk server IPTV:
+     * – Banyak server reply Content-Type: text/html meski isi-nya HLS
+     * – Banyak server tidak support HEAD → 405 Method Not Allowed
+     */
+    private fun resolveStreamType(): M3uParser.StreamType {
+        if (mimeTypeHint.isNotEmpty()) {
+            val t = M3uParser.mimeStringToStreamType(mimeTypeHint)
+            if (t != M3uParser.StreamType.PROGRESSIVE) return t
+        }
+        return M3uParser.detectStreamType(channelUrl)
+    }
 
+    // ── Start dengan tipe yang sudah DIKETAHUI PASTI ─────────────────────
+
+    private fun startWithKnownType(type: M3uParser.StreamType) {
+        Log.d(TAG, "startWithKnownType: $type")
+        val factory = buildDataSourceFactory()
+        val source  = buildMediaSourceForKnownType(channelUrl, type, factory)
+        launchExoPlayer(source, isKnownType = true)
+    }
+
+    // ── Start dengan fallback bertingkat ─────────────────────────────────
+
+    private fun startWithFallbackStage(stage: FallbackStage) {
+        fallbackStage = stage
+        Log.d(TAG, "startWithFallbackStage: $stage")
+
+        val factory = buildDataSourceFactory()
+        val uri     = Uri.parse(channelUrl)
+
+        val source: MediaSource = when (stage) {
+            FallbackStage.HLS -> {
+                // KUNCI: tanpa setMimeType() → ExoPlayer sniff dari byte pertama isi.
+                // Ini yang handle vnd.apple.mpegurl, x-mpegurl, .ts stream, dll.
+                HlsMediaSource.Factory(factory)
+                    .createMediaSource(MediaItem.fromUri(uri))
+            }
+            FallbackStage.DEFAULT -> {
+                // ExoPlayer full auto-detect dari content bytes
+                DefaultMediaSourceFactory(factory)
+                    .createMediaSource(MediaItem.fromUri(uri))
+            }
+            FallbackStage.DASH -> {
+                DashMediaSource.Factory(factory).createMediaSource(
+                    MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
+                )
+            }
+        }
+        launchExoPlayer(source, isKnownType = false)
+    }
+
+    /**
+     * Launch ExoPlayer dengan MediaSource yang diberikan.
+     * [isKnownType] menentukan berapa lama timeout buffering yang dipakai.
+     */
+    private fun launchExoPlayer(source: MediaSource, isKnownType: Boolean) {
         val exo = player ?: ExoPlayer.Builder(this).build().also { newExo ->
             player = newExo
             binding.playerView.player = newExo
             attachPlayerListener(newExo)
         }
-
         exo.stop()
-        exo.setMediaSource(mediaSource)
+        exo.clearMediaItems()
+        exo.setMediaSource(source)
         exo.playWhenReady = true
         exo.prepare()
+
+        // Mulai buffering timeout
+        val timeout = if (isKnownType) BUFFERING_TIMEOUT_KNOWN_MS else BUFFERING_TIMEOUT_MS
+        scheduleBufferingTimeout(timeout)
     }
 
-    private fun buildDataSourceFactory(): DefaultHttpDataSource.Factory {
-        return DefaultHttpDataSource.Factory().apply {
-            setUserAgent(userAgent.ifEmpty {
-                "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
-            })
-            val headers = mutableMapOf<String, String>()
-            if (referer.isNotEmpty()) {
-                headers["Referer"] = referer
-                val refererUri = Uri.parse(referer)
-                val port = refererUri.port
-                headers["Origin"] = buildString {
-                    append(refererUri.scheme ?: "https")
-                    append("://")
-                    append(refererUri.host ?: "")
-                    if (port != -1) append(":$port")
-                }
+    // ── Buffering Timeout ─────────────────────────────────────────────────
+
+    private fun scheduleBufferingTimeout(delayMs: Long) {
+        cancelBufferingTimeout()
+        bufferingTimeoutHandler.postDelayed(bufferingTimeoutRunnable, delayMs)
+        Log.d(TAG, "Buffering timeout scheduled: ${delayMs}ms [fallback=$isUsingFallback stage=$fallbackStage]")
+    }
+
+    private fun cancelBufferingTimeout() {
+        bufferingTimeoutHandler.removeCallbacks(bufferingTimeoutRunnable)
+    }
+
+    /**
+     * Dipanggil ketika ExoPlayer stuck di STATE_BUFFERING melebihi timeout.
+     * Ini adalah satu-satunya cara menangani kasus loading tanpa henti karena
+     * onPlayerError tidak dipanggil saat ExoPlayer berhasil connect tapi
+     * tidak bisa parse format stream.
+     */
+    private fun onBufferingTimeout() {
+        val state = player?.playbackState
+        // Hanya bertindak jika memang masih buffering
+        if (state != Player.STATE_BUFFERING && state != Player.STATE_IDLE) {
+            Log.d(TAG, "Buffering timeout fired but state=$state, ignoring")
+            return
+        }
+
+        Log.w(TAG, "Buffering timeout! fallback=$isUsingFallback stage=$fallbackStage")
+
+        if (isUsingFallback) {
+            advanceFallbackStage()
+        } else {
+            // Stream dengan tipe diketahui tapi timeout → coba lagi sekali,
+            // lalu tampilkan error
+            if (retryCount < MAX_AUTO_RETRY) {
+                retryCount++
+                Log.d(TAG, "Known-type buffering timeout, retry $retryCount/$MAX_AUTO_RETRY")
+                retryHandler.postDelayed({ if (!isFinishing) setupPlayer() }, 1_000L)
+            } else {
+                retryCount = 0
+                showLoading(false)
+                showError("Stream tidak merespons. Periksa koneksi atau coba lagi.")
             }
-            if (headers.isNotEmpty()) setDefaultRequestProperties(headers)
-            setConnectTimeoutMs(15_000)
-            setReadTimeoutMs(15_000)
         }
     }
 
+    /** Pindah ke stage fallback berikutnya, atau tampilkan error jika sudah habis. */
+    private fun advanceFallbackStage() {
+        val nextStage: FallbackStage? = when (fallbackStage) {
+            FallbackStage.HLS     -> FallbackStage.DEFAULT
+            FallbackStage.DEFAULT -> FallbackStage.DASH
+            FallbackStage.DASH    -> null
+        }
+
+        if (nextStage != null) {
+            Log.d(TAG, "Advancing fallback: $fallbackStage → $nextStage")
+            retryHandler.postDelayed({
+                if (!isFinishing) startWithFallbackStage(nextStage)
+            }, 300L)
+        } else {
+            // Semua format dicoba, semua timeout
+            isUsingFallback = false
+            showLoading(false)
+            showError("Tidak dapat memutar channel ini. Format stream tidak dikenali atau server tidak merespons.")
+        }
+    }
+
+    // ── Listener ExoPlayer ────────────────────────────────────────────────
+
     private fun attachPlayerListener(exo: ExoPlayer) {
         exo.addListener(object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                when (playbackState) {
+            override fun onPlaybackStateChanged(state: Int) {
+                when (state) {
                     Player.STATE_READY -> {
+                        // Berhasil! Batalkan semua timeout & reset state
+                        cancelBufferingTimeout()
+                        retryHandler.removeCallbacksAndMessages(null)
+                        isUsingFallback = false
+                        retryCount = 0
                         showLoading(false)
                         showError(null)
-                        retryCount = 0
                         preBufferHandler.removeCallbacksAndMessages(null)
                         preBufferHandler.postDelayed({ startPreBuffer() }, 1_500)
+                        Log.d(TAG, "STATE_READY — stream playing")
                     }
-                    Player.STATE_BUFFERING -> showLoading(true)
-                    Player.STATE_ENDED     -> showError("Stream berakhir")
-                    Player.STATE_IDLE      -> {}
+                    Player.STATE_BUFFERING -> {
+                        showLoading(true)
+                        // Timeout sudah dijadwalkan di launchExoPlayer(),
+                        // tidak perlu reschedule di sini.
+                    }
+                    Player.STATE_ENDED -> {
+                        cancelBufferingTimeout()
+                        showError("Stream berakhir")
+                    }
+                    Player.STATE_IDLE -> cancelBufferingTimeout()
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "Player error: ${error.message}")
+                cancelBufferingTimeout()
+                Log.e(TAG, "onPlayerError [fallback=$isUsingFallback stage=$fallbackStage]: ${error.message}")
                 showLoading(false)
+
+                if (isUsingFallback) {
+                    // Error eksplisit → langsung lanjut ke stage berikutnya tanpa delay
+                    advanceFallbackStage()
+                    return
+                }
+
+                // Stream tipe diketahui → auto-retry biasa
                 if (retryCount < MAX_AUTO_RETRY) {
                     retryCount++
-                    Log.d(TAG, "Auto-retry $retryCount/$MAX_AUTO_RETRY")
-                    retryHandler.postDelayed({
-                        if (!isFinishing) setupPlayer()
-                    }, 2_000L * retryCount)
+                    retryHandler.postDelayed({ if (!isFinishing) setupPlayer() }, 2_000L * retryCount)
                 } else {
                     retryCount = 0
                     showError("Gagal memuat: ${error.localizedMessage ?: "Error tidak diketahui"}")
@@ -302,392 +389,274 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
-    /**
-     * Bangun MediaSource yang tepat berdasarkan StreamType yang sudah diketahui.
-     * Tidak ada lagi deteksi ulang di sini — type sudah final dari setupPlayer().
-     */
-    private fun buildMediaSource(
-        url: String,
-        streamType: M3uParser.StreamType,
-        dataSourceFactory: DefaultHttpDataSource.Factory
-    ): MediaSource {
-        val uri = Uri.parse(url)
-        return when (streamType) {
-            M3uParser.StreamType.DASH -> {
-                if (licenseType.isNotEmpty() && licenseKey.isNotEmpty()) {
-                    buildDashWithClearKey(uri, dataSourceFactory)
-                } else {
-                    DashMediaSource.Factory(dataSourceFactory).createMediaSource(
-                        MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
-                    )
+    // ── Build helpers ─────────────────────────────────────────────────────
+
+    private fun buildDataSourceFactory(): DefaultHttpDataSource.Factory =
+        DefaultHttpDataSource.Factory().apply {
+            setUserAgent(userAgent.ifEmpty {
+                "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
+            })
+            val headers = mutableMapOf<String, String>()
+            if (referer.isNotEmpty()) {
+                headers["Referer"] = referer
+                val uri  = Uri.parse(referer)
+                val port = uri.port
+                headers["Origin"] = buildString {
+                    append(uri.scheme ?: "https").append("://").append(uri.host ?: "")
+                    if (port != -1) append(":$port")
                 }
             }
-            M3uParser.StreamType.HLS -> {
-                // Set MIME type eksplisit agar ExoPlayer tidak salah detect
-                HlsMediaSource.Factory(dataSourceFactory).createMediaSource(
-                    MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_M3U8).build()
-                )
-            }
-            else -> {
-                // PROGRESSIVE / RTMP — biarkan ExoPlayer auto-detect dari respons
-                DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(
-                    MediaItem.fromUri(uri)
-                )
-            }
+            if (headers.isNotEmpty()) setDefaultRequestProperties(headers)
+            setConnectTimeoutMs(15_000)
+            setReadTimeoutMs(15_000)
         }
-    }
 
-    private fun buildDashWithClearKey(
-        uri: Uri,
-        dataSourceFactory: DefaultHttpDataSource.Factory
+    private fun buildMediaSourceForKnownType(
+        url: String,
+        type: M3uParser.StreamType,
+        factory: DefaultHttpDataSource.Factory
     ): MediaSource {
-        return try {
-            val keySets = parseClearKeys(licenseKey)
-            if (keySets.isEmpty()) {
-                Log.w(TAG, "No valid ClearKey pairs found, skipping DRM")
-                return DashMediaSource.Factory(dataSourceFactory).createMediaSource(
+        val uri = Uri.parse(url)
+        return when (type) {
+            M3uParser.StreamType.DASH -> {
+                val drmSource = tryBuildDrmMediaSource(uri, factory)
+                drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
                 )
             }
-            val mediaItem = MediaItem.Builder()
-                .setUri(uri)
-                .setMimeType(MimeTypes.APPLICATION_MPD)
-                .setDrmConfiguration(
-                    MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
-                        .setLicenseUri("data:application/json;base64," + buildClearKeyJson(keySets))
-                        .build()
-                )
-                .build()
-            DashMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
+            M3uParser.StreamType.HLS ->
+                HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
+            else ->
+                DefaultMediaSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri))
+        }
+    }
+
+    // ── DRM routing ───────────────────────────────────────────────────────
+    //
+    // Bug sebelumnya:
+    //  1. Semua licenseType diperlakukan sebagai ClearKey → Widevine/PlayReady gagal
+    //  2. parseClearKeys() menolak UUID dengan dash (format paling umum di IPTV)
+    //  3. Key dalam format base64url juga ditolak
+    //
+    // Routing yang benar:
+    //  • clearkey / org.w3.clearkey  → C.CLEARKEY_UUID  + inline JSON
+    //  • widevine / edef8ba9-...     → C.WIDEVINE_UUID  + license server URL
+    //  • playready / 9a04f079-...    → C.PLAYREADY_UUID + license server URL
+    //  • kosong / tidak dikenal      → tidak ada DRM (return null)
+    // ─────────────────────────────────────────────────────────────────────
+
+    private fun tryBuildDrmMediaSource(
+        uri: Uri,
+        factory: DefaultHttpDataSource.Factory
+    ): MediaSource? {
+        if (licenseKey.isEmpty()) return null
+
+        val lt = licenseType.lowercase().trim()
+
+        return try {
+            when {
+                // ── ClearKey ──────────────────────────────────────────────
+                lt.isEmpty() || lt.contains("clearkey") || lt == "org.w3.clearkey" -> {
+                    val keys = parseClearKeys(licenseKey)
+                    if (keys.isEmpty()) {
+                        Log.w(TAG, "ClearKey: no valid key pairs parsed from '$licenseKey'")
+                        return null
+                    }
+                    val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
+                    Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON ready")
+                    DashMediaSource.Factory(factory).createMediaSource(
+                        MediaItem.Builder()
+                            .setUri(uri)
+                            .setMimeType(MimeTypes.APPLICATION_MPD)
+                            .setDrmConfiguration(
+                                MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
+                                    .setLicenseUri(inlineJson)
+                                    .build()
+                            ).build()
+                    )
+                }
+
+                // ── Widevine ──────────────────────────────────────────────
+                lt.contains("widevine") ||
+                lt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
+                    // Format: "https://license.url" atau "https://license.url|Header: Value&Header2: Value2"
+                    val parts          = licenseKey.split("|")
+                    val licenseUrl     = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    Log.d(TAG, "Widevine: url=$licenseUrl headers=${requestHeaders.keys}")
+                    DashMediaSource.Factory(factory).createMediaSource(
+                        MediaItem.Builder()
+                            .setUri(uri)
+                            .setMimeType(MimeTypes.APPLICATION_MPD)
+                            .setDrmConfiguration(
+                                MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                                    .setLicenseUri(licenseUrl)
+                                    .setLicenseRequestHeaders(requestHeaders)
+                                    .build()
+                            ).build()
+                    )
+                }
+
+                // ── PlayReady ─────────────────────────────────────────────
+                lt.contains("playready") ||
+                lt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
+                    val parts          = licenseKey.split("|")
+                    val licenseUrl     = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    Log.d(TAG, "PlayReady: url=$licenseUrl")
+                    DashMediaSource.Factory(factory).createMediaSource(
+                        MediaItem.Builder()
+                            .setUri(uri)
+                            .setMimeType(MimeTypes.APPLICATION_MPD)
+                            .setDrmConfiguration(
+                                MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
+                                    .setLicenseUri(licenseUrl)
+                                    .setLicenseRequestHeaders(requestHeaders)
+                                    .build()
+                            ).build()
+                    )
+                }
+
+                else -> {
+                    Log.w(TAG, "Unknown licenseType '$licenseType', skipping DRM")
+                    null
+                }
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "DRM setup failed, trying without DRM: ${e.message}")
-            DashMediaSource.Factory(dataSourceFactory).createMediaSource(
-                MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
-            )
+            Log.e(TAG, "DRM build failed: ${e.message}", e)
+            null
         }
     }
 
+    /**
+     * Parse string header format "Key: Value&Key2: Value2" atau "Key=Value&Key2=Value2"
+     * yang umum digunakan setelah pipe di licenseKey Widevine/PlayReady.
+     */
+    private fun parseHeaderString(raw: String): Map<String, String> {
+        val result = mutableMapOf<String, String>()
+        raw.split("&").forEach { entry ->
+            // Coba format "Key: Value" dulu, lalu "Key=Value"
+            val sep = if (entry.contains(": ")) ": " else "="
+            val idx = entry.indexOf(sep)
+            if (idx > 0) {
+                val k = entry.substring(0, idx).trim()
+                val v = entry.substring(idx + sep.length).trim()
+                if (k.isNotEmpty() && v.isNotEmpty()) result[k] = v
+            }
+        }
+        return result
+    }
+
+    /**
+     * Parse ClearKey pairs dari string licenseKey.
+     *
+     * Format yang didukung:
+     *  1. Hex plain:    "aaaabbbb...1111:ffffeeee...8888"
+     *  2. UUID dash:    "aaaabbbb-cccc-dddd-1111-2222:ffffeeee-dddc-ccbb-1111-0000"
+     *  3. Base64url:    "qqu7u8zM3d0RESLSM0RE:FO7u3czMu7ERAQCZ99iI"
+     *  4. Multi-pair:   "kid1:k1,kid2:k2"
+     *
+     * Return: list of (kid_base64url, k_base64url) siap masuk JSON
+     */
     private fun parseClearKeys(licenseKey: String): List<Pair<String, String>> {
-        return licenseKey.split(",").mapNotNull { pair ->
-            val parts = pair.trim().split(":")
-            if (parts.size == 2) {
-                val kid = parts[0].trim()
-                val k   = parts[1].trim()
-                if (isValidHex(kid) && isValidHex(k)) Pair(kid, k) else null
-            } else null
+        val result = mutableListOf<Pair<String, String>>()
+        for (raw in licenseKey.split(",")) {
+            val pair = raw.trim()
+            // Pisah hanya pada ':' pertama agar URL (yang punya '://') tidak tersplit
+            val colonIdx = pair.indexOf(':')
+            if (colonIdx <= 0) continue
+            val rawKid = pair.substring(0, colonIdx).trim()
+            val rawK   = pair.substring(colonIdx + 1).trim()
+            // Skip jika rawK terlihat seperti URL (Widevine/PlayReady format)
+            if (rawK.startsWith("http://") || rawK.startsWith("https://")) continue
+
+            val kidB64 = toBase64Url(rawKid) ?: continue
+            val kB64   = toBase64Url(rawK)   ?: continue
+            result.add(Pair(kidB64, kB64))
+            Log.d(TAG, "ClearKey parsed: kid=${kidB64.take(8)}… k=${kB64.take(8)}…")
         }
+        return result
     }
 
-    private fun isValidHex(s: String): Boolean =
-        s.isNotEmpty() && s.length % 2 == 0 && s.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+    /**
+     * Konversi satu string key ke base64url.
+     * Menerima: hex (dengan atau tanpa dash), base64url.
+     * Return null jika format tidak dikenal.
+     */
+    private fun toBase64Url(raw: String): String? {
+        val stripped = raw.replace("-", "").trim()
+
+        // Coba hex dulu
+        if (stripped.isNotEmpty() && stripped.length % 2 == 0 &&
+            stripped.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+        ) {
+            return try {
+                val bytes = ByteArray(stripped.length / 2) { i ->
+                    stripped.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+                }
+                android.util.Base64.encodeToString(
+                    bytes,
+                    android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
+                )
+            } catch (e: Exception) { null }
+        }
+
+        // Coba base64url — jika sudah dalam format itu, kembalikan apa adanya
+        return try {
+            val padded = raw + "=".repeat((4 - raw.length % 4) % 4)
+            android.util.Base64.decode(padded, android.util.Base64.URL_SAFE)
+            raw   // valid base64url, pakai langsung
+        } catch (e: Exception) { null }
+    }
 
     private fun buildClearKeyJson(keys: List<Pair<String, String>>): String {
-        val keyArray = keys.joinToString(",") { (kid, k) ->
-            """{"kty":"oct","kid":"${hexToBase64Url(kid)}","k":"${hexToBase64Url(k)}"}"""
-        }
-        val encoded = """{"keys":[$keyArray],"type":"temporary"}"""
-        return android.util.Base64.encodeToString(encoded.toByteArray(), android.util.Base64.NO_WRAP)
-    }
-
-    private fun hexToBase64Url(hex: String): String {
-        val bytes = ByteArray(hex.length / 2) { i ->
-            hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        // keys sudah berisi (kid_base64url, k_base64url) dari parseClearKeys()
+        val arr = keys.joinToString(",") { (kid, k) ->
+            """{"kty":"oct","kid":"$kid","k":"$k"}"""
         }
         return android.util.Base64.encodeToString(
-            bytes,
-            android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING
+            """{"keys":[$arr],"type":"temporary"}""".toByteArray(Charsets.UTF_8),
+            android.util.Base64.NO_WRAP
         )
     }
 
-    // ========================
-    // TV REMOTE: KeyEvent Handler
-    // ========================
+    // ════════════════════════════════════════════════════════════════════════
+    // UI
+    // ════════════════════════════════════════════════════════════════════════
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        showTopBarTemporarily()
-        return when (keyCode) {
-            KeyEvent.KEYCODE_MEDIA_PLAY -> { player?.play(); showToastBrief("▶ Play"); true }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> { player?.pause(); showToastBrief("⏸ Pause"); true }
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER -> {
-                player?.let {
-                    if (it.isPlaying) { it.pause(); showToastBrief("⏸ Pause") }
-                    else              { it.play();  showToastBrief("▶ Play")  }
-                }
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_STOP -> { player?.stop(); showToastBrief("⏹ Stop"); true }
-            KeyEvent.KEYCODE_CHANNEL_UP,
-            KeyEvent.KEYCODE_PAGE_UP    -> { navigateChannel(+1); true }
-            KeyEvent.KEYCODE_CHANNEL_DOWN,
-            KeyEvent.KEYCODE_PAGE_DOWN  -> { navigateChannel(-1); true }
-            KeyEvent.KEYCODE_BACK       -> { finish(); true }
-            KeyEvent.KEYCODE_MENU       -> { showSleepTimerDialog(); true }
-            else -> super.onKeyDown(keyCode, event)
-        }
-    }
-
-    private fun navigateChannel(offset: Int) {
-        if (allChannels.isEmpty()) {
-            allChannels = viewModel.getAllChannels()
-            currentChannelIndex = allChannels.indexOfFirst { it.id == channelId }
-        }
-        if (allChannels.isEmpty()) { showToastBrief("Daftar channel belum tersedia"); return }
-
-        val nextIndex = when {
-            currentChannelIndex < 0 -> 0
-            else -> (currentChannelIndex + offset + allChannels.size) % allChannels.size
-        }
-        val nextChannel = allChannels[nextIndex]
-        currentChannelIndex = nextIndex
-
-        channelName  = nextChannel.name
-        channelUrl   = nextChannel.url
-        channelLogo  = nextChannel.logoUrl
-        userAgent    = nextChannel.userAgent
-        licenseType  = nextChannel.licenseType
-        licenseKey   = nextChannel.licenseKey
-        referer      = nextChannel.referer
-        channelId    = nextChannel.id
-        mimeTypeHint = nextChannel.mimeTypeHint   // Propagate hint ke channel berikutnya
-
-        viewModel.onChannelWatched(channelId)
-
+    private fun setupUI() {
         binding.tvChannelName.text = channelName
-        if (channelLogo.isNotEmpty()) {
-            Glide.with(this).load(channelLogo)
-                .placeholder(R.drawable.ic_tv_placeholder)
-                .error(R.drawable.ic_tv_placeholder)
-                .into(binding.ivChannelLogo)
-        } else {
-            binding.ivChannelLogo.setImageResource(R.drawable.ic_tv_placeholder)
+        if (channelLogo.isNotEmpty()) Glide.with(this).load(channelLogo)
+            .placeholder(R.drawable.ic_tv_placeholder).error(R.drawable.ic_tv_placeholder)
+            .into(binding.ivChannelLogo)
+        binding.btnBack.setOnClickListener { finish() }
+        binding.btnFavorite.setOnClickListener {
+            if (channelId.isNotEmpty()) { viewModel.toggleFavorite(channelId); updateFavoriteIcon() }
         }
+        binding.btnSleepTimer.setOnClickListener { showSleepTimerDialog() }
+        binding.btnPip.setOnClickListener { enterPipMode() }
+        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_prev_channel)
+            ?.setOnClickListener { navigateChannel(-1) }
+        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_next_channel)
+            ?.setOnClickListener { navigateChannel(+1) }
+        binding.btnLockOrientation?.setOnClickListener { toggleOrientationLock() }
         updateFavoriteIcon()
         updateLiveBadge()
-
-        val buffered = consumePreBuffer(nextIndex)
-        if (buffered != null) {
-            Log.d(TAG, "Using pre-buffered player for ${nextChannel.name}")
-            player?.release()
-            player = buffered
-            binding.playerView.player = buffered
-            attachPlayerListener(buffered)
-            buffered.playWhenReady = true
-            showLoading(false)
-        } else {
-            setupPlayer()
-        }
-        showTopBarTemporarily()
-        showChannelPosition()
-        showToastBrief("📺 $channelName")
     }
 
-    private val hidePositionHandler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    private fun showChannelPosition() {
-        if (allChannels.isEmpty()) return
-        val total = allChannels.size
-        val pos = if (currentChannelIndex >= 0) currentChannelIndex + 1 else 1
-        binding.tvChannelPosition.text = "$pos / $total"
-        binding.tvChannelPosition.visibility = View.VISIBLE
-        hidePositionHandler.removeCallbacksAndMessages(null)
-        hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
+    private fun updateLiveBadge() {
+        val live = currentChannelIndex >= 0 && allChannels.isNotEmpty() &&
+            allChannels[currentChannelIndex].streamType.let { it == "HLS" || it == "RTMP" }
+        binding.playerView.findViewById<android.widget.TextView?>(R.id.tv_live_badge)
+            ?.visibility = if (live) View.VISIBLE else View.GONE
     }
 
-    // ========================
-    // Pre-buffer channel berikutnya
-    // ========================
-
-    private val preBufferHandler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    private fun startPreBuffer() {
-        if (allChannels.isEmpty()) return
-        val nextIndex = (currentChannelIndex + 1) % allChannels.size
-        if (nextIndex == preBufferIndex) return
-
-        releasePreBuffer()
-
-        val nextChannel = allChannels[nextIndex]
-        preBufferIndex = nextIndex
-
-        try {
-            val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory().apply {
-                setConnectTimeoutMs(10_000)
-                setReadTimeoutMs(10_000)
-                if (nextChannel.userAgent.isNotEmpty()) setUserAgent(nextChannel.userAgent)
-            }
-
-            val detectedType = when {
-                nextChannel.mimeTypeHint.isNotEmpty() ->
-                    M3uParser.mimeStringToStreamType(nextChannel.mimeTypeHint)
-                else ->
-                    M3uParser.detectStreamType(nextChannel.url)
-            }
-
-            val source = when (detectedType) {
-                M3uParser.StreamType.DASH ->
-                    androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory)
-                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
-                M3uParser.StreamType.HLS ->
-                    androidx.media3.exoplayer.hls.HlsMediaSource.Factory(factory)
-                        .createMediaSource(
-                            androidx.media3.common.MediaItem.Builder()
-                                .setUri(nextChannel.url)
-                                .setMimeType(MimeTypes.APPLICATION_M3U8)
-                                .build()
-                        )
-                else ->
-                    androidx.media3.exoplayer.source.DefaultMediaSourceFactory(factory)
-                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
-            }
-
-            preBufferPlayer = ExoPlayer.Builder(this).build().also { exo ->
-                exo.setMediaSource(source)
-                exo.playWhenReady = false
-                exo.prepare()
-            }
-            Log.d(TAG, "Pre-buffering: ${nextChannel.name} [${detectedType.label}]")
-        } catch (e: Exception) {
-            Log.w(TAG, "Pre-buffer failed: ${e.message}")
-            preBufferPlayer = null
-            preBufferIndex = -1
-        }
+    private fun updateFavoriteIcon() {
+        binding.btnFavorite.setImageResource(
+            if (channelId.isNotEmpty() && viewModel.isFavorite(channelId))
+                R.drawable.ic_favorite_filled else R.drawable.ic_favorite_border
+        )
     }
-
-    private fun consumePreBuffer(targetIndex: Int): ExoPlayer? {
-        if (preBufferIndex != targetIndex) return null
-        val exo = preBufferPlayer ?: return null
-        preBufferPlayer = null
-        preBufferIndex = -1
-        return exo
-    }
-
-    private fun releasePreBuffer() {
-        preBufferPlayer?.release()
-        preBufferPlayer = null
-        preBufferIndex = -1
-    }
-
-    private fun showToastBrief(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
-            enterPictureInPictureMode(params)
-        } else {
-            Toast.makeText(this, "PiP tidak didukung di Android ini", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player?.isPlaying == true) {
-            val params = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
-            enterPictureInPictureMode(params)
-        }
-    }
-
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        val uiVisibility = if (isInPictureInPictureMode) View.GONE else View.VISIBLE
-        binding.topBar.visibility = uiVisibility
-    }
-
-    // ========================
-    // Sleep Timer
-    // ========================
-
-    private fun showSleepTimerDialog() {
-        val options = arrayOf("15 menit", "30 menit", "45 menit", "60 menit", "90 menit", "Matikan Timer")
-        val minutes = intArrayOf(15, 30, 45, 60, 90, 0)
-        AlertDialog.Builder(this)
-            .setTitle("⏱️  Sleep Timer")
-            .setItems(options) { _, which ->
-                val selected = minutes[which]
-                if (selected == 0) cancelSleepTimer() else startSleepTimer(selected)
-            }
-            .show()
-    }
-
-    private fun startSleepTimer(minutes: Int) {
-        cancelSleepTimer()
-        sleepTimerMinutesLeft = minutes
-        updateSleepTimerButton(minutes)
-        viewModel.setSleepTimer(minutes)
-
-        sleepTimer = object : CountDownTimer(minutes * 60_000L, 60_000L) {
-            override fun onTick(millisUntilFinished: Long) {
-                sleepTimerMinutesLeft = (millisUntilFinished / 60_000).toInt()
-                updateSleepTimerButton(sleepTimerMinutesLeft)
-            }
-            override fun onFinish() {
-                Toast.makeText(this@PlayerActivity, "Sleep timer selesai", Toast.LENGTH_SHORT).show()
-                viewModel.clearSleepTimer()
-                finish()
-            }
-        }.start()
-        Toast.makeText(this, "Sleep timer: $minutes menit", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun cancelSleepTimer() {
-        sleepTimer?.cancel()
-        sleepTimer = null
-        sleepTimerMinutesLeft = 0
-        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer)
-        binding.tvSleepTimer.visibility = View.GONE
-        viewModel.clearSleepTimer()
-    }
-
-    private fun updateSleepTimerButton(minutesLeft: Int) {
-        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer_active)
-        binding.tvSleepTimer.text = "${minutesLeft}m"
-        binding.tvSleepTimer.visibility = View.VISIBLE
-    }
-
-    // ========================
-    // Auto-hide top bar
-    // ========================
-
-    private fun showTopBarTemporarily() {
-        hideUiHandler.removeCallbacks(hideUiRunnable)
-        binding.topBar.animate().cancel()
-        binding.topBar.visibility = View.VISIBLE
-        binding.topBar.alpha = 1f
-        hideUiHandler.postDelayed(hideUiRunnable, UI_HIDE_DELAY_MS)
-    }
-
-    private fun hideTopBar() {
-        binding.topBar.animate()
-            .alpha(0f)
-            .setDuration(400)
-            .withEndAction { binding.topBar.visibility = View.GONE }
-            .start()
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        gestureDetector.onTouchEvent(event)
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                showTopBarTemporarily()
-                gestureStartX = event.x
-                gestureStartY = event.y
-                isVolumeGesture = event.x > resources.displayMetrics.widthPixels / 2f
-                audioManager?.let { initialVolume = it.getStreamVolume(AudioManager.STREAM_MUSIC) }
-                initialBrightness = window.attributes.screenBrightness.let {
-                    if (it < 0) 0.5f else it
-                }
-            }
-            MotionEvent.ACTION_MOVE -> handleGestureMove(event)
-        }
-        return super.onTouchEvent(event)
-    }
-
-    // ========================
-    // UI helpers
-    // ========================
 
     private fun showLoading(show: Boolean) {
         binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
@@ -696,14 +665,10 @@ class PlayerActivity : AppCompatActivity() {
     private fun showError(message: String?) {
         if (message != null) {
             hideUiHandler.removeCallbacks(hideUiRunnable)
-            binding.topBar.visibility = View.VISIBLE
-            binding.topBar.alpha = 1f
+            binding.topBar.visibility = View.VISIBLE; binding.topBar.alpha = 1f
             binding.errorLayout.visibility = View.VISIBLE
             binding.tvError.text = message
-            binding.btnRetry.setOnClickListener {
-                binding.errorLayout.visibility = View.GONE
-                setupPlayer()
-            }
+            binding.btnRetry.setOnClickListener { binding.errorLayout.visibility = View.GONE; setupPlayer() }
             binding.btnErrorBack.setOnClickListener { finish() }
         } else {
             binding.errorLayout.visibility = View.GONE
@@ -711,11 +676,206 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // NAVIGASI CHANNEL
+    // ════════════════════════════════════════════════════════════════════════
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        showTopBarTemporarily()
+        return when (keyCode) {
+            KeyEvent.KEYCODE_MEDIA_PLAY        -> { player?.play();  showToast("▶ Play");  true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE       -> { player?.pause(); showToast("⏸ Pause"); true }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER             -> {
+                player?.let { if (it.isPlaying) { it.pause(); showToast("⏸ Pause") }
+                              else              { it.play();  showToast("▶ Play")  } }; true
+            }
+            KeyEvent.KEYCODE_MEDIA_STOP        -> { player?.stop(); showToast("⏹ Stop"); true }
+            KeyEvent.KEYCODE_CHANNEL_UP,
+            KeyEvent.KEYCODE_PAGE_UP           -> { navigateChannel(+1); true }
+            KeyEvent.KEYCODE_CHANNEL_DOWN,
+            KeyEvent.KEYCODE_PAGE_DOWN         -> { navigateChannel(-1); true }
+            KeyEvent.KEYCODE_BACK              -> { finish(); true }
+            KeyEvent.KEYCODE_MENU              -> { showSleepTimerDialog(); true }
+            else                               -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    private fun navigateChannel(offset: Int) {
+        if (allChannels.isEmpty()) {
+            allChannels = viewModel.getAllChannels()
+            currentChannelIndex = allChannels.indexOfFirst { it.id == channelId }
+        }
+        if (allChannels.isEmpty()) { showToast("Daftar channel belum tersedia"); return }
+
+        val nextIndex = (currentChannelIndex.coerceAtLeast(0) + offset + allChannels.size) % allChannels.size
+        val next = allChannels[nextIndex]
+        currentChannelIndex = nextIndex
+
+        channelName  = next.name;  channelUrl  = next.url;      channelLogo = next.logoUrl
+        userAgent    = next.userAgent; licenseType = next.licenseType
+        licenseKey   = next.licenseKey; referer  = next.referer
+        channelId    = next.id;    mimeTypeHint = next.mimeTypeHint
+
+        viewModel.onChannelWatched(channelId)
+        binding.tvChannelName.text = channelName
+        if (channelLogo.isNotEmpty()) Glide.with(this).load(channelLogo)
+            .placeholder(R.drawable.ic_tv_placeholder).error(R.drawable.ic_tv_placeholder)
+            .into(binding.ivChannelLogo)
+        else binding.ivChannelLogo.setImageResource(R.drawable.ic_tv_placeholder)
+        updateFavoriteIcon(); updateLiveBadge()
+
+        val buffered = consumePreBuffer(nextIndex)
+        if (buffered != null) {
+            Log.d(TAG, "Pre-buffer hit: ${next.name}")
+            player?.release()
+            player = buffered
+            binding.playerView.player = buffered
+            attachPlayerListener(buffered)
+            buffered.playWhenReady = true
+            showLoading(false)
+            cancelBufferingTimeout()
+        } else {
+            setupPlayer()
+        }
+        showTopBarTemporarily(); showChannelPosition(); showToast("📺 $channelName")
+    }
+
+    private val hidePositionHandler = Handler(Looper.getMainLooper())
+
+    private fun showChannelPosition() {
+        if (allChannels.isEmpty()) return
+        binding.tvChannelPosition.text = "${currentChannelIndex + 1} / ${allChannels.size}"
+        binding.tvChannelPosition.visibility = View.VISIBLE
+        hidePositionHandler.removeCallbacksAndMessages(null)
+        hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PRE-BUFFER
+    // ════════════════════════════════════════════════════════════════════════
+
+    private val preBufferHandler = Handler(Looper.getMainLooper())
+
+    private fun startPreBuffer() {
+        if (allChannels.isEmpty()) return
+        val nextIndex = (currentChannelIndex + 1) % allChannels.size
+        if (nextIndex == preBufferIndex) return
+        releasePreBuffer()
+        val next = allChannels[nextIndex]
+        preBufferIndex = nextIndex
+        try {
+            val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory().apply {
+                setConnectTimeoutMs(10_000); setReadTimeoutMs(10_000)
+                if (next.userAgent.isNotEmpty()) setUserAgent(next.userAgent)
+            }
+            preBufferPlayer = ExoPlayer.Builder(this).build().also { exo ->
+                exo.setMediaSource(
+                    HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(next.url))
+                )
+                exo.playWhenReady = false
+                exo.prepare()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Pre-buffer failed: ${e.message}")
+            preBufferPlayer = null; preBufferIndex = -1
+        }
+    }
+
+    private fun consumePreBuffer(idx: Int): ExoPlayer? {
+        if (preBufferIndex != idx) return null
+        val exo = preBufferPlayer ?: return null
+        preBufferPlayer = null; preBufferIndex = -1
+        return exo
+    }
+
+    private fun releasePreBuffer() {
+        preBufferPlayer?.release(); preBufferPlayer = null; preBufferIndex = -1
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PiP
+    // ════════════════════════════════════════════════════════════════════════
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+            )
+        } else showToast("PiP tidak didukung di Android ini")
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player?.isPlaying == true)
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
+            )
+    }
+
+    override fun onPictureInPictureModeChanged(pip: Boolean, cfg: Configuration) {
+        super.onPictureInPictureModeChanged(pip, cfg)
+        binding.topBar.visibility = if (pip) View.GONE else View.VISIBLE
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SLEEP TIMER
+    // ════════════════════════════════════════════════════════════════════════
+
+    private fun showSleepTimerDialog() {
+        val opts = arrayOf("15 menit","30 menit","45 menit","60 menit","90 menit","Matikan Timer")
+        val mins = intArrayOf(15, 30, 45, 60, 90, 0)
+        AlertDialog.Builder(this).setTitle("⏱️  Sleep Timer")
+            .setItems(opts) { _, i -> if (mins[i] == 0) cancelSleepTimer() else startSleepTimer(mins[i]) }
+            .show()
+    }
+
+    private fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        sleepTimerMinutesLeft = minutes
+        updateSleepTimerButton(minutes)
+        viewModel.setSleepTimer(minutes)
+        sleepTimer = object : CountDownTimer(minutes * 60_000L, 60_000L) {
+            override fun onTick(ms: Long) { sleepTimerMinutesLeft = (ms / 60_000).toInt(); updateSleepTimerButton(sleepTimerMinutesLeft) }
+            override fun onFinish() { showToast("Sleep timer selesai"); viewModel.clearSleepTimer(); finish() }
+        }.start()
+        showToast("Sleep timer: $minutes menit")
+    }
+
+    private fun cancelSleepTimer() {
+        sleepTimer?.cancel(); sleepTimer = null; sleepTimerMinutesLeft = 0
+        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer)
+        binding.tvSleepTimer.visibility = View.GONE
+        viewModel.clearSleepTimer()
+    }
+
+    private fun updateSleepTimerButton(min: Int) {
+        binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer_active)
+        binding.tvSleepTimer.text = "${min}m"; binding.tvSleepTimer.visibility = View.VISIBLE
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // UI HELPERS
+    // ════════════════════════════════════════════════════════════════════════
+
+    private fun showTopBarTemporarily() {
+        hideUiHandler.removeCallbacks(hideUiRunnable)
+        binding.topBar.animate().cancel()
+        binding.topBar.visibility = View.VISIBLE; binding.topBar.alpha = 1f
+        hideUiHandler.postDelayed(hideUiRunnable, UI_HIDE_DELAY_MS)
+    }
+
+    private fun hideTopBar() {
+        binding.topBar.animate().alpha(0f).setDuration(400)
+            .withEndAction { binding.topBar.visibility = View.GONE }.start()
+    }
+
     private fun enterFullscreen() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, binding.root).let { ctrl ->
-            ctrl.hide(WindowInsetsCompat.Type.systemBars())
-            ctrl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        WindowInsetsControllerCompat(window, binding.root).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
 
@@ -734,78 +894,80 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cancelBufferingTimeout()
         hideUiHandler.removeCallbacks(hideUiRunnable)
         hidePositionHandler.removeCallbacksAndMessages(null)
         preBufferHandler.removeCallbacksAndMessages(null)
         retryHandler.removeCallbacksAndMessages(null)
         gestureOverlayHandler.removeCallbacksAndMessages(null)
-        releasePreBuffer()
-        sleepTimer?.cancel()
-        player?.release()
-        player = null
+        releasePreBuffer(); sleepTimer?.cancel(); player?.release(); player = null
     }
 
-    // ========================
-    // Gesture: Volume & Brightness
-    // ========================
+    override fun onConfigurationChanged(cfg: Configuration) { super.onConfigurationChanged(cfg); enterFullscreen() }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // GESTURE
+    // ════════════════════════════════════════════════════════════════════════
 
     private fun setupGestureDetector() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
         gestureDetector = GestureDetector(this,
-            object : GestureDetector.SimpleOnGestureListener() {
-                override fun onDown(e: MotionEvent) = true
-            })
+            object : GestureDetector.SimpleOnGestureListener() { override fun onDown(e: MotionEvent) = true })
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        gestureDetector.onTouchEvent(event)
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                showTopBarTemporarily()
+                gestureStartX = event.x; gestureStartY = event.y
+                isVolumeGesture = event.x > resources.displayMetrics.widthPixels / 2f
+                audioManager?.let { initialVolume = it.getStreamVolume(AudioManager.STREAM_MUSIC) }
+                initialBrightness = window.attributes.screenBrightness.takeIf { it >= 0 } ?: 0.5f
+            }
+            MotionEvent.ACTION_MOVE -> handleGestureMove(event)
+        }
+        return super.onTouchEvent(event)
     }
 
     private fun handleGestureMove(event: MotionEvent) {
-        val deltaY = gestureStartY - event.y
-        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
-        val ratio = deltaY / screenHeight
-
+        val ratio = (gestureStartY - event.y) / resources.displayMetrics.heightPixels
         if (isVolumeGesture) {
-            val newVol = (initialVolume + ratio * maxVolume).toInt().coerceIn(0, maxVolume)
-            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-            showGestureOverlay("🔊 ${(newVol * 100f / maxVolume).toInt()}%")
+            val v = (initialVolume + ratio * maxVolume).toInt().coerceIn(0, maxVolume)
+            audioManager?.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+            showGestureOverlay("🔊 ${(v * 100f / maxVolume).toInt()}%")
         } else {
-            val newBright = (initialBrightness + ratio).coerceIn(0.01f, 1f)
-            window.attributes = window.attributes.also { it.screenBrightness = newBright }
-            showGestureOverlay("☀ ${(newBright * 100).toInt()}%")
+            val b = (initialBrightness + ratio).coerceIn(0.01f, 1f)
+            window.attributes = window.attributes.also { it.screenBrightness = b }
+            showGestureOverlay("☀ ${(b * 100).toInt()}%")
         }
     }
 
     private fun showGestureOverlay(text: String) {
         binding.tvGestureOverlay?.let { tv ->
-            tv.text = text
-            tv.visibility = View.VISIBLE
-            tv.animate().cancel()
-            tv.alpha = 1f
+            tv.text = text; tv.visibility = View.VISIBLE; tv.animate().cancel(); tv.alpha = 1f
             gestureOverlayHandler.removeCallbacksAndMessages(null)
             gestureOverlayHandler.postDelayed({
-                tv.animate().alpha(0f).setDuration(300)
-                    .withEndAction { tv.visibility = View.GONE }.start()
+                tv.animate().alpha(0f).setDuration(300).withEndAction { tv.visibility = View.GONE }.start()
             }, 800)
         }
     }
 
-    // ========================
-    // Lock Orientasi
-    // ========================
+    // ════════════════════════════════════════════════════════════════════════
+    // LOCK ORIENTASI
+    // ════════════════════════════════════════════════════════════════════════
 
     private fun toggleOrientationLock() {
         isOrientationLocked = !isOrientationLocked
         requestedOrientation = if (isOrientationLocked)
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        else
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-
-        val icon = if (isOrientationLocked) R.drawable.ic_screen_lock_landscape else R.drawable.ic_fullscreen
-        binding.btnLockOrientation?.setImageResource(icon)
-        showToastBrief(if (isOrientationLocked) "🔒 Landscape terkunci" else "🔓 Rotasi otomatis")
+        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        binding.btnLockOrientation?.setImageResource(
+            if (isOrientationLocked) R.drawable.ic_screen_lock_landscape else R.drawable.ic_fullscreen
+        )
+        showToast(if (isOrientationLocked) "🔒 Landscape terkunci" else "🔓 Rotasi otomatis")
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        enterFullscreen()
-    }
+    private fun showToast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }

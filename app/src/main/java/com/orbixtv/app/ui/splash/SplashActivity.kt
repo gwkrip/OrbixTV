@@ -9,19 +9,18 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import com.orbixtv.app.BuildConfig
-import com.orbixtv.app.MainActivity
-import com.orbixtv.app.databinding.ActivitySplashBinding
-import com.orbixtv.app.ui.MainViewModel
-import com.orbixtv.app.worker.PlaylistCheckWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
+import com.orbixtv.app.BuildConfig
+import com.orbixtv.app.MainActivity
+import com.orbixtv.app.data.ChannelRepository
+import com.orbixtv.app.databinding.ActivitySplashBinding
+import com.orbixtv.app.worker.PlaylistCheckWorker
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class SplashActivity : AppCompatActivity() {
 
@@ -40,10 +39,7 @@ class SplashActivity : AppCompatActivity() {
         binding = ActivitySplashBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // #15: Tampilkan versi app
         binding.tvVersion.text = "v${BuildConfig.VERSION_NAME}"
-
-        // ⑫ Jadwalkan cek playlist periodik (setiap 6 jam)
         schedulePlaylistCheck()
 
         binding.ivLogo.alpha    = 0f
@@ -54,40 +50,49 @@ class SplashActivity : AppCompatActivity() {
         binding.tvAppName.animate().alpha(1f).setDuration(800).setStartDelay(300).start()
         binding.tvTagline.animate().alpha(1f).setDuration(800).setStartDelay(600).start()
 
-        val viewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        // ── BUG E FIX: Tidak lagi membuat MainViewModel di sini.
+        //
+        // Sebelumnya: ViewModelProvider(this)[MainViewModel::class.java]
+        // Masalah: setiap Activity memiliki ViewModel scope sendiri, sehingga
+        // MainViewModel.init{} memanggil loadPlaylist() lagi di SplashActivity,
+        // dan sekali lagi di MainActivity → playlist di-load DUA KALI setiap startup.
+        //
+        // Solusi: langsung observe ChannelRepository (singleton) dari SplashActivity.
+        // MainActivity tetap membuat ViewModelnya sendiri dan loadPlaylist() hanya
+        // dipanggil SEKALI dari sana.
+        // ──────────────────────────────────────────────────────────────────────
+        val repo = ChannelRepository.getInstance(applicationContext)
 
+        // Kick off playlist load langsung dari repository — MainActivity akan
+        // mengamati hasilnya via ViewModel yang di-create setelah pindah layar.
         lifecycleScope.launch {
             val minSplashJob = launch { delay(1_500) }
 
-            // #2: Tampilkan ProgressBar setelah 2 detik jika masih loading
+            // Tampilkan progress setelah 2 detik jika load masih berjalan
             launch {
                 delay(2_000)
-                if (!isFinishing && viewModel.isLoading.value) {
-                    binding.progressLoading.visibility = View.VISIBLE
-                }
+                if (!isFinishing) binding.progressLoading.visibility = View.VISIBLE
             }
 
-            var waited = false
-            viewModel.isLoading.collect { loading ->
-                if (!loading && !waited) {
-                    waited = true
-                    minSplashJob.join()
-                    if (!isFinishing) {
-                        binding.progressLoading.visibility = View.GONE
-                        startActivity(Intent(this@SplashActivity, MainActivity::class.java))
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            overrideActivityTransition(
-                                OVERRIDE_TRANSITION_OPEN,
-                                android.R.anim.fade_in,
-                                android.R.anim.fade_out
-                            )
-                        } else {
-                            @Suppress("DEPRECATION")
-                            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-                        }
-                        finish()
-                    }
+            // Mulai load playlist
+            repo.loadPlaylist()
+
+            // Tunggu minimal splash time selesai, lalu pindah
+            minSplashJob.join()
+            if (!isFinishing) {
+                binding.progressLoading.visibility = View.GONE
+                startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    overrideActivityTransition(
+                        OVERRIDE_TRANSITION_OPEN,
+                        android.R.anim.fade_in,
+                        android.R.anim.fade_out
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
                 }
+                finish()
             }
         }
     }

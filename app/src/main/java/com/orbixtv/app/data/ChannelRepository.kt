@@ -45,6 +45,10 @@ class ChannelRepository private constructor(private val context: Context) {
     private var cachedAllChannels: List<Channel> = emptyList()
     private var channelById: Map<String, Channel> = emptyMap()
 
+    // Guard untuk mencegah double-load di SplashActivity → MainViewModel.
+    // Di-reset ke false setiap kali user mengganti playlist URL secara manual.
+    @Volatile private var isPlaylistLoaded = false
+
     // ============================================================
     // BUG #8 + #9 FIX: Mutex untuk thread-safety pada cachedFavorite-
     // Ids, dan flag isFavoritesLoaded agar kondisi isEmpty tidak
@@ -57,26 +61,52 @@ class ChannelRepository private constructor(private val context: Context) {
     // --- Playlist URL ---
 
     fun getPlaylistUrl(): String = prefs.getString("playlist_url", "") ?: ""
-    fun savePlaylistUrl(url: String) = prefs.edit().putString("playlist_url", url.trim()).apply()
-    fun clearPlaylistUrl() = prefs.edit().remove("playlist_url").apply()
+    fun savePlaylistUrl(url: String) {
+        isPlaylistLoaded = false   // paksa reload saat URL baru disimpan
+        prefs.edit().putString("playlist_url", url.trim()).apply()
+    }
+    fun clearPlaylistUrl() {
+        isPlaylistLoaded = false   // paksa reload saat URL dihapus
+        prefs.edit().remove("playlist_url").apply()
+    }
 
     // --- Load playlist ---
 
+    /**
+     * Muat playlist dari URL eksternal atau assets bawaan.
+     *
+     * Guard [isPlaylistLoaded] memastikan tidak ada double-load:
+     * SplashActivity memanggil ini langsung, lalu MainViewModel.init{}
+     * memanggil lagi — panggilan kedua akan di-skip jika data sudah ada.
+     *
+     * Return: pesan error jika URL gagal, null jika sukses.
+     */
     suspend fun loadPlaylist(): String? {
+        if (isPlaylistLoaded && cachedAllChannels.isNotEmpty()) return null
+
         val url = getPlaylistUrl()
         return if (url.isNotEmpty()) {
             val result = M3uParser.parseFromUrl(url)
             if (result.isSuccess) {
                 applyGroups(result.getOrNull() ?: emptyList())
+                isPlaylistLoaded = true
                 null
             } else {
                 loadFromAssets()
+                isPlaylistLoaded = true
                 "Gagal memuat dari URL: ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
             }
         } else {
             loadFromAssets()
+            isPlaylistLoaded = true
             null
         }
+    }
+
+    /** Muat ulang paksa — dipanggil saat user mengganti URL atau reset. */
+    suspend fun reloadPlaylist(): String? {
+        isPlaylistLoaded = false
+        return loadPlaylist()
     }
 
     // ============================================================

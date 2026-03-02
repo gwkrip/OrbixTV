@@ -24,6 +24,15 @@ class GroupAdapter(
         setMaxRecycledViews(0, 20)
     }
 
+    override fun submitList(list: List<ChannelGroup>?) {
+        // Bersihkan nama grup yang sudah tidak ada agar expandedGroups tidak terus tumbuh
+        if (list != null) {
+            val validNames = list.map { it.name }.toSet()
+            expandedGroups.retainAll(validNames)
+        }
+        super.submitList(list)
+    }
+
     companion object DiffCallback : DiffUtil.ItemCallback<ChannelGroup>() {
         override fun areItemsTheSame(oldItem: ChannelGroup, newItem: ChannelGroup) = oldItem.name == newItem.name
         override fun areContentsTheSame(oldItem: ChannelGroup, newItem: ChannelGroup) = oldItem == newItem

@@ -112,6 +112,7 @@ class FavoritesFragment : Fragment() {
             tempFile.outputStream().use { out -> inputStream.copyTo(out) }
 
             viewModel.importFavorites(tempFile) { count ->
+                tempFile.delete()   // bersihkan temp file setelah import selesai
                 val msg = when {
                     count > 0  -> getString(R.string.import_success, count)
                     count == 0 -> getString(R.string.import_no_new)

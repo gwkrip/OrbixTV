@@ -53,8 +53,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Playlist URL ---
     fun getPlaylistUrl(): String = repository.getPlaylistUrl()
-    fun setPlaylistUrl(url: String) { repository.savePlaylistUrl(url); loadPlaylist() }
-    fun resetToDefaultPlaylist() { repository.clearPlaylistUrl(); loadPlaylist() }
+
+    fun setPlaylistUrl(url: String) {
+        repository.savePlaylistUrl(url)
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loadError.value = null
+            _loadError.value = repository.reloadPlaylist()   // paksa reload URL baru
+            _isLoading.value = false
+        }
+    }
+
+    fun resetToDefaultPlaylist() {
+        repository.clearPlaylistUrl()
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loadError.value = null
+            _loadError.value = repository.reloadPlaylist()   // paksa kembali ke assets
+            _isLoading.value = false
+        }
+    }
 
     // --- Search ---
     fun search(query: String) {
