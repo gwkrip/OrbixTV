@@ -181,7 +181,14 @@ class PlayerActivity : AppCompatActivity() {
         // Bersihkan semua handler yang mungkin masih berjalan dari sesi sebelumnya
         retryHandler.removeCallbacksAndMessages(null)
         cancelBufferingTimeout()
-        retryCount = 0
+        // [FIX BUG-A] JANGAN reset retryCount di sini!
+        // Jika direset di sini, onPlayerError/onBufferingTimeout selalu melihat
+        // retryCount=0 → kondisi else (showError) tidak pernah tercapai
+        // → infinite retry loop → loading selamanya.
+        // retryCount HANYA boleh direset di:
+        //   1. STATE_READY (stream berhasil diputar)
+        //   2. navigateChannel (pindah channel baru)
+        //   3. Tombol "Coba Lagi" di error layout (user-initiated)
 
         showLoading(true)
         showError(null)
@@ -696,7 +703,11 @@ class PlayerActivity : AppCompatActivity() {
             binding.topBar.visibility = View.VISIBLE; binding.topBar.alpha = 1f
             binding.errorLayout.visibility = View.VISIBLE
             binding.tvError.text = message
-            binding.btnRetry.setOnClickListener { binding.errorLayout.visibility = View.GONE; setupPlayer() }
+            binding.btnRetry.setOnClickListener {
+                binding.errorLayout.visibility = View.GONE
+                retryCount = 0  // [FIX BUG-A] User klik retry = mulai dari awal
+                setupPlayer()
+            }
             binding.btnErrorBack.setOnClickListener { finish() }
         } else {
             binding.errorLayout.visibility = View.GONE
@@ -745,6 +756,7 @@ class PlayerActivity : AppCompatActivity() {
         userAgent    = next.userAgent; licenseType = next.licenseType
         licenseKey   = next.licenseKey; referer  = next.referer
         channelId    = next.id;    mimeTypeHint = next.mimeTypeHint
+        retryCount   = 0  // [FIX BUG-A] Channel baru = retry counter baru dari 0
 
         viewModel.onChannelWatched(channelId)
         binding.tvChannelName.text = channelName

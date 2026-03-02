@@ -107,7 +107,14 @@ object M3uParser {
                         val prop  = trimmed.removePrefix("#KODIPROP:")
                         val key   = prop.substringBefore("=").trim()
                         val value = prop.substringAfter("=", "").trim()
-                        if (key.isNotEmpty() && value.isNotEmpty()) pendingKodiProps[key] = value
+                        if (key.isNotEmpty() && value.isNotEmpty()) {
+                            // [FIX BUG-B] Jangan overwrite jika key sudah ada.
+                            // inputstream.adaptive.stream_headers sering muncul
+                            // beberapa baris (Origin=, Referer=, User-Agent=, dll.)
+                            // Gabungkan dengan "&" agar semua header tersimpan.
+                            val existing = pendingKodiProps[key]
+                            pendingKodiProps[key] = if (existing != null) "$existing&$value" else value
+                        }
                     }
                     trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
                         parseChannel(pendingExtInf!!, trimmed, pendingKodiProps)
@@ -137,7 +144,11 @@ object M3uParser {
                     val prop  = trimmed.removePrefix("#KODIPROP:")
                     val key   = prop.substringBefore("=").trim()
                     val value = prop.substringAfter("=", "").trim()
-                    if (key.isNotEmpty() && value.isNotEmpty()) pendingKodiProps[key] = value
+                    if (key.isNotEmpty() && value.isNotEmpty()) {
+                        // [FIX BUG-B] Gabungkan nilai duplicate key dengan "&"
+                        val existing = pendingKodiProps[key]
+                        pendingKodiProps[key] = if (existing != null) "$existing&$value" else value
+                    }
                 }
                 trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
                     parseChannel(pendingExtInf!!, trimmed, pendingKodiProps)?.let { channels.add(it) }
@@ -211,14 +222,37 @@ object M3uParser {
                 }
             }
             if (licenseKey.isEmpty()) licenseKey = kodiProps["inputstream.adaptive.license_key"] ?: ""
-            if (userAgent.isEmpty()) {
-                val streamHeaders = kodiProps["inputstream.adaptive.stream_headers"] ?: ""
-                if (streamHeaders.contains("user-agent=", ignoreCase = true)) {
-                    userAgent = streamHeaders
-                        .split("&", "|")
-                        .firstOrNull { it.startsWith("user-agent=", ignoreCase = true) }
-                        ?.substringAfter("=") ?: ""
+
+            // [FIX BUG-B + BUG-C] stream_headers sekarang berisi SEMUA header yang digabung dengan "&"
+            // Contoh setelah fix Bug-B:
+            //   "Origin=https://www.indihometv.com&Referer=https://www.indihometv.com&User-Agent=..."
+            // Ekstrak setiap header yang relevan dari string gabungan ini.
+            val streamHeaders = kodiProps["inputstream.adaptive.stream_headers"] ?: ""
+            if (streamHeaders.isNotEmpty()) {
+                // Pisah per "&", tapi hati-hati: value bisa mengandung "&" juga
+                // Strategi: split berdasarkan pola "KEY=" yang diawali "&" atau awal string
+                // Pendekatan aman: split dan cari pasangan key=value
+                streamHeaders.split("&").forEach { header ->
+                    val hTrimmed = header.trim()
+                    when {
+                        hTrimmed.startsWith("user-agent=", ignoreCase = true) && userAgent.isEmpty() ->
+                            userAgent = hTrimmed.substringAfter("=").trimStart('|').trim()
+                                // Beberapa playlist menulis: "User-Agent=|user-agent=..." (pipe duplikat)
+                                // Ambil hanya bagian setelah pipe pertama jika ada
+                                .let { v -> if (v.startsWith("|")) v.substringAfter("|") else v }
+                        hTrimmed.startsWith("referer=", ignoreCase = true) && referer.isEmpty() ->
+                            referer = hTrimmed.substringAfter("=").trim('"')
+                        hTrimmed.startsWith("origin=", ignoreCase = true) -> { /* Origin → dipakai buildDataSourceFactory dari referer */ }
+                    }
                 }
+            }
+
+            // Fallback lama jika stream_headers tidak menyertakan user-agent
+            if (userAgent.isEmpty() && streamHeaders.contains("user-agent=", ignoreCase = true)) {
+                userAgent = streamHeaders
+                    .split("&", "|")
+                    .firstOrNull { it.startsWith("user-agent=", ignoreCase = true) }
+                    ?.substringAfter("=") ?: ""
             }
 
             // --- Deteksi tipe stream dengan prioritas bertingkat ---
