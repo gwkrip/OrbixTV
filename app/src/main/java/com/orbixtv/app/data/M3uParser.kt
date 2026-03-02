@@ -189,9 +189,26 @@ object M3uParser {
     fun detectStreamType(url: String): StreamType {
         val lower = url.lowercase()
         return when {
-            lower.contains(".mpd") || lower.contains("/dash/") || lower.contains("manifest.mpd") -> StreamType.DASH
-            lower.contains(".m3u8") || lower.contains("/hls/") || lower.contains("chunklist")    -> StreamType.HLS
-            lower.startsWith("rtmp://") || lower.startsWith("rtmps://")                          -> StreamType.RTMP
+            // DASH: pola URL yang umum dipakai provider IPTV
+            lower.contains(".mpd") ||
+            lower.contains("/dash/") ||
+            lower.contains("manifest.mpd") ||
+            lower.contains("/mpd/") ||
+            lower.contains("format=mpd") ||
+            lower.contains("type=dash") ||
+            lower.contains("ism/manifest") ||
+            lower.contains(".ism(.mpd)") -> StreamType.DASH
+
+            // HLS
+            lower.contains(".m3u8") ||
+            lower.contains("/hls/") ||
+            lower.contains("chunklist") ||
+            lower.contains("format=m3u8") -> StreamType.HLS
+
+            // RTMP
+            lower.startsWith("rtmp://") ||
+            lower.startsWith("rtmps://") -> StreamType.RTMP
+
             else -> StreamType.PROGRESSIVE
         }
     }

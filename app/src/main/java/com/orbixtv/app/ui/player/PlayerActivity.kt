@@ -319,7 +319,7 @@ class PlayerActivity : AppCompatActivity() {
                 .setMimeType(MimeTypes.APPLICATION_MPD)
                 .setDrmConfiguration(
                     MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
-                        .setLicenseUri("data:text/plain;base64," + buildClearKeyJson(keySets))
+                        .setLicenseUri("data:application/json;base64," + buildClearKeyJson(keySets))
                         .build()
                 )
                 .build()
