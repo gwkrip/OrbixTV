@@ -34,7 +34,7 @@ class PlaylistSettingsActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
 
         binding.btnSupport.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.support_url))))
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://saweria.co/vryptdev")))
         }
 
         refreshSourceLabel()
