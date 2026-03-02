@@ -30,7 +30,7 @@ class PlaylistCheckWorker(
     }
 
     override suspend fun doWork(): Result {
-        val repo = ChannelRepository(applicationContext)
+        val repo = ChannelRepository.getInstance(applicationContext)
 
         // Tidak ada URL eksternal — tidak perlu cek
         if (repo.getPlaylistUrl().isEmpty()) return Result.success()
