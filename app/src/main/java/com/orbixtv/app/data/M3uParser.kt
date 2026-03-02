@@ -79,16 +79,32 @@ object M3uParser {
     private fun parseFromReader(reader: BufferedReader): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
         var pendingExtInf: String? = null
+        // FIX: Kumpulkan #KODIPROP antara #EXTINF dan URL — sebelumnya diabaikan → DRM tidak terbaca → blackscreen
+        val pendingKodiProps = mutableMapOf<String, String>()
 
         reader.use {
             var line = it.readLine()
             while (line != null) {
                 val trimmed = line.trim()
                 when {
-                    trimmed.startsWith("#EXTINF:") -> pendingExtInf = trimmed
+                    trimmed.startsWith("#EXTINF:") -> {
+                        pendingExtInf = trimmed
+                        pendingKodiProps.clear()
+                    }
+                    // Tangkap semua #KODIPROP yang berisi konfigurasi DRM/stream
+                    trimmed.startsWith("#KODIPROP:") && pendingExtInf != null -> {
+                        val prop  = trimmed.removePrefix("#KODIPROP:")
+                        val key   = prop.substringBefore("=").trim()
+                        val value = prop.substringAfter("=", "").trim()
+                        if (key.isNotEmpty() && value.isNotEmpty()) {
+                            pendingKodiProps[key] = value
+                        }
+                    }
                     trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
-                        parseChannel(pendingExtInf!!, trimmed)?.let { ch -> channels.add(ch) }
+                        parseChannel(pendingExtInf!!, trimmed, pendingKodiProps)
+                            ?.let { ch -> channels.add(ch) }
                         pendingExtInf = null
+                        pendingKodiProps.clear()
                     }
                 }
                 line = it.readLine()
@@ -102,13 +118,24 @@ object M3uParser {
     fun parseContent(content: String): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
         var pendingExtInf: String? = null
+        val pendingKodiProps = mutableMapOf<String, String>()
         content.lineSequence().forEach { rawLine ->
             val trimmed = rawLine.trim()
             when {
-                trimmed.startsWith("#EXTINF:") -> pendingExtInf = trimmed
+                trimmed.startsWith("#EXTINF:") -> {
+                    pendingExtInf = trimmed
+                    pendingKodiProps.clear()
+                }
+                trimmed.startsWith("#KODIPROP:") && pendingExtInf != null -> {
+                    val prop  = trimmed.removePrefix("#KODIPROP:")
+                    val key   = prop.substringBefore("=").trim()
+                    val value = prop.substringAfter("=", "").trim()
+                    if (key.isNotEmpty() && value.isNotEmpty()) pendingKodiProps[key] = value
+                }
                 trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
-                    parseChannel(pendingExtInf!!, trimmed)?.let { channels.add(it) }
+                    parseChannel(pendingExtInf!!, trimmed, pendingKodiProps)?.let { channels.add(it) }
                     pendingExtInf = null
+                    pendingKodiProps.clear()
                 }
             }
         }
@@ -130,7 +157,20 @@ object M3uParser {
         }.sortedBy { it.name }
     }
 
-    private fun parseChannel(extinf: String, url: String): Channel? {
+    /**
+     * FIX: Tambah parameter kodiProps untuk membaca #KODIPROP DRM config.
+     * Priority: URL pipe params (license_type=, license_key=) > #KODIPROP lines.
+     *
+     * #KODIPROP yang didukung:
+     *   inputstream.adaptive.license_type  → licenseType
+     *   inputstream.adaptive.license_key   → licenseKey
+     *   inputstream.adaptive.manifest_type → hint tipe stream (mpd = DASH)
+     */
+    private fun parseChannel(
+        extinf: String,
+        url: String,
+        kodiProps: Map<String, String> = emptyMap()
+    ): Channel? {
         return try {
             val displayName = extinf.substringAfterLast(",").trim()
             val tvgName     = NAME_REGEX.find(extinf)?.groupValues?.get(1) ?: ""
@@ -146,12 +186,14 @@ object M3uParser {
             var licenseKey  = ""
             var referer     = ""
 
+            // --- 1. Baca dari pipe params di URL (format Kodi/IPTV lama) ---
             params.split("&").forEach { param ->
                 when {
                     param.startsWith("User-Agent=")   -> userAgent   = param.substringAfter("User-Agent=")
                     param.startsWith("license_type=") -> licenseType = param.substringAfter("license_type=")
                     param.startsWith("license_key=")  -> licenseKey  = param.substringAfter("license_key=")
                     param.startsWith("referrer=")     -> referer     = param.substringAfter("referrer=").trim('"')
+                    param.startsWith("Referer=")      -> referer     = param.substringAfter("Referer=").trim('"')
                 }
             }
 
@@ -164,10 +206,43 @@ object M3uParser {
                 }
             }
 
-            val stableId = (name + streamUrl).hashCode().toString()
+            // --- 2. FIX: Baca dari #KODIPROP jika URL params tidak menyediakan DRM config ---
+            // #KODIPROP: inputstream.adaptive.license_type  (clearkey, org.w3.clearkey, com.widevine.alpha, dll)
+            if (licenseType.isEmpty()) {
+                val kodiLicType = kodiProps["inputstream.adaptive.license_type"] ?: ""
+                if (kodiLicType.isNotEmpty()) {
+                    // Normalisasi: "org.w3.clearkey" dan "clearkey" diperlakukan sama
+                    licenseType = if (kodiLicType.equals("org.w3.clearkey", ignoreCase = true))
+                        "clearkey" else kodiLicType
+                }
+            }
 
-            // #10: streamType dihitung SEKALI saat parse, disimpan di Channel — tidak perlu ulang di adapter
-            val streamType = detectStreamType(streamUrl)
+            // #KODIPROP: inputstream.adaptive.license_key  (format hex: "kid:key" atau "kid1:key1,kid2:key2")
+            if (licenseKey.isEmpty()) {
+                licenseKey = kodiProps["inputstream.adaptive.license_key"] ?: ""
+            }
+
+            // #KODIPROP: user-agent / stream_headers (format "Key=Value")
+            if (userAgent.isEmpty()) {
+                val streamHeaders = kodiProps["inputstream.adaptive.stream_headers"] ?: ""
+                if (streamHeaders.contains("user-agent=", ignoreCase = true)) {
+                    userAgent = streamHeaders
+                        .split("&", "|")
+                        .firstOrNull { it.startsWith("user-agent=", ignoreCase = true) }
+                        ?.substringAfter("=") ?: ""
+                }
+            }
+
+            // --- 3. Deteksi tipe stream ---
+            // Beri hint dari #KODIPROP manifest_type jika URL tidak cukup jelas
+            val kodiManifestType = kodiProps["inputstream.adaptive.manifest_type"]?.lowercase() ?: ""
+            val streamType = when {
+                kodiManifestType == "mpd" || kodiManifestType == "dash" -> StreamType.DASH
+                kodiManifestType == "hls"                               -> StreamType.HLS
+                else                                                    -> detectStreamType(streamUrl)
+            }
+
+            val stableId = (name + streamUrl).hashCode().toString()
 
             Channel(
                 id          = stableId,
