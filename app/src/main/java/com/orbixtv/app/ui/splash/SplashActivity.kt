@@ -60,7 +60,7 @@ class SplashActivity : AppCompatActivity() {
                 if (!isFinishing) binding.progressLoading.visibility = View.VISIBLE
             }
 
-            repo.loadPlaylist()
+            repo.reloadPlaylist()
 
             minSplashJob.join()
             if (!isFinishing) {

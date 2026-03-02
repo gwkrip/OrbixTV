@@ -36,14 +36,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val streamFilter: StateFlow<StreamFilter> = _streamFilter
 
     init {
-        loadPlaylist()
+        initialLoad()
     }
 
+    /** Pertama kali buka app — selalu download ulang dari URL */
+    private fun initialLoad() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _loadError.value = null
+            _loadError.value = repository.reloadPlaylist()
+            _isLoading.value = false
+        }
+    }
+
+    /** Force reload — selalu ambil ulang dari URL (dipanggil setelah URL diubah) */
     fun loadPlaylist() {
         viewModelScope.launch {
             _isLoading.value = true
             _loadError.value = null
-            _loadError.value = repository.loadPlaylist()
+            _loadError.value = repository.reloadPlaylist()
             _isLoading.value = false
         }
     }
@@ -51,6 +62,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun getPlaylistUrl(): String = repository.getPlaylistUrl()
     fun isUsingDefaultUrl(): Boolean = repository.isUsingDefaultUrl()
     fun getDefaultPlaylistUrl(): String = com.orbixtv.app.data.ChannelRepository.DEFAULT_PLAYLIST_URL
+
+    /** Simpan URL saja tanpa reload — reload dipicu oleh caller (HomeFragment via settingsLauncher) */
+    fun saveUrl(url: String) = repository.savePlaylistUrl(url)
+
+    /** Reset ke URL default tanpa reload */
+    fun resetUrl() = repository.resetToDefaultUrl()
 
     fun setPlaylistUrl(url: String) {
         repository.savePlaylistUrl(url)

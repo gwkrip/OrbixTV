@@ -24,7 +24,7 @@ class ChannelRepository private constructor(private val context: Context) {
         // ============================================================
         // Ganti URL di bawah ini dengan URL playlist default Anda
         // ============================================================
-        const val DEFAULT_PLAYLIST_URL = "https://raw.githubusercontent.com/gwkrip/iptv-playlist/refs/heads/main/index.m3u"
+        const val DEFAULT_PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u"
         // ============================================================
 
         fun getInstance(context: Context): ChannelRepository =

@@ -1,10 +1,12 @@
 package com.orbixtv.app.ui.home
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SearchView
 import androidx.fragment.app.Fragment
@@ -41,6 +43,15 @@ class HomeFragment : Fragment() {
     private var isSearchActive = false
     private var isTvLayout = false
     private var searchDebounceJob: Job? = null
+
+    // Launcher untuk PlaylistSettingsActivity — reload playlist jika ada perubahan
+    private val settingsLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.loadPlaylist()
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
@@ -191,7 +202,7 @@ class HomeFragment : Fragment() {
 
     private fun setupSettingsButton() {
         binding.btnSettings.setOnClickListener {
-            startActivity(Intent(requireContext(), PlaylistSettingsActivity::class.java))
+            settingsLauncher.launch(Intent(requireContext(), PlaylistSettingsActivity::class.java))
         }
     }
 
