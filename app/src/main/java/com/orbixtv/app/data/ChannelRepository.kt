@@ -18,11 +18,6 @@ import java.util.Locale
 
 class ChannelRepository private constructor(private val context: Context) {
 
-    // ============================================================
-    // BUG #1 + #14 FIX: Singleton — PlayerActivity & PlaylistSettings-
-    // Activity kini berbagi instance yang sama dengan MainViewModel,
-    // sehingga channel list tidak pernah kosong di PlayerActivity.
-    // ============================================================
     companion object {
         @Volatile private var INSTANCE: ChannelRepository? = null
 
@@ -45,42 +40,22 @@ class ChannelRepository private constructor(private val context: Context) {
     private var cachedAllChannels: List<Channel> = emptyList()
     private var channelById: Map<String, Channel> = emptyMap()
 
-    // Guard untuk mencegah double-load di SplashActivity → MainViewModel.
-    // Di-reset ke false setiap kali user mengganti playlist URL secara manual.
     @Volatile private var isPlaylistLoaded = false
 
-    // ============================================================
-    // BUG #8 + #9 FIX: Mutex untuk thread-safety pada cachedFavorite-
-    // Ids, dan flag isFavoritesLoaded agar kondisi isEmpty tidak
-    // ambigu ketika user memang punya 0 favorit.
-    // ============================================================
     private val favoritesMutex = Mutex()
     private var cachedFavoriteIds: Set<String> = emptySet()
     private var isFavoritesLoaded = false
 
-    // --- Playlist URL ---
-
     fun getPlaylistUrl(): String = prefs.getString("playlist_url", "") ?: ""
     fun savePlaylistUrl(url: String) {
-        isPlaylistLoaded = false   // paksa reload saat URL baru disimpan
+        isPlaylistLoaded = false
         prefs.edit().putString("playlist_url", url.trim()).apply()
     }
     fun clearPlaylistUrl() {
-        isPlaylistLoaded = false   // paksa reload saat URL dihapus
+        isPlaylistLoaded = false
         prefs.edit().remove("playlist_url").apply()
     }
 
-    // --- Load playlist ---
-
-    /**
-     * Muat playlist dari URL eksternal atau assets bawaan.
-     *
-     * Guard [isPlaylistLoaded] memastikan tidak ada double-load:
-     * SplashActivity memanggil ini langsung, lalu MainViewModel.init{}
-     * memanggil lagi — panggilan kedua akan di-skip jika data sudah ada.
-     *
-     * Return: pesan error jika URL gagal, null jika sukses.
-     */
     suspend fun loadPlaylist(): String? {
         if (isPlaylistLoaded && cachedAllChannels.isNotEmpty()) return null
 
@@ -103,16 +78,11 @@ class ChannelRepository private constructor(private val context: Context) {
         }
     }
 
-    /** Muat ulang paksa — dipanggil saat user mengganti URL atau reset. */
     suspend fun reloadPlaylist(): String? {
         isPlaylistLoaded = false
         return loadPlaylist()
     }
 
-    // ============================================================
-    // BUG #16 FIX: Gunakan sharedHttpClient (followRedirects=true)
-    // agar redirect HTTPS→HTTP diikuti secara otomatis.
-    // ============================================================
     suspend fun isPlaylistUrlReachable(): Boolean = withContext(Dispatchers.IO) {
         val url = getPlaylistUrl().ifEmpty { return@withContext true }
         try {
@@ -145,8 +115,6 @@ class ChannelRepository private constructor(private val context: Context) {
         }
     }
 
-    // --- Sort & Filter ---
-
     fun getSortedFiltered(
         sort: SortOrder,
         filter: StreamFilter,
@@ -166,10 +134,6 @@ class ChannelRepository private constructor(private val context: Context) {
         }
     }
 
-    // --- Favorites ---
-
-    // BUG #8 FIX: favoritesMutex.withLock() menjamin tidak ada race
-    // condition antara toggleFavorite (IO) dan applyGroups.
     suspend fun toggleFavorite(channelId: String) = withContext(Dispatchers.IO) {
         favoritesMutex.withLock {
             val favIds = cachedFavoriteIds.toMutableSet()
@@ -185,7 +149,6 @@ class ChannelRepository private constructor(private val context: Context) {
     private fun loadFavoriteIds(): Set<String> =
         prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
-    // BUG #9 FIX: Flag isFavoritesLoaded terpisah — bukan isEmpty().
     private suspend fun refreshFavoritesCache() {
         favoritesMutex.withLock {
             if (!isFavoritesLoaded) {
@@ -200,8 +163,6 @@ class ChannelRepository private constructor(private val context: Context) {
 
     fun enrichWithFavorite(channel: Channel): Channel =
         channel.copy(isFavorite = isFavorite(channel.id))
-
-    // --- Export / Import Favorit ---
 
     suspend fun exportFavorites(): File? = withContext(Dispatchers.IO) {
         try {
@@ -256,8 +217,6 @@ class ChannelRepository private constructor(private val context: Context) {
         }
     }
 
-    // --- Recently watched ---
-
     fun getLastWatched(): List<String> {
         val raw = prefs.getString("last_watched", "") ?: ""
         return if (raw.isEmpty()) emptyList()
@@ -276,11 +235,7 @@ class ChannelRepository private constructor(private val context: Context) {
 
     fun clearHistory() = prefs.edit().remove("last_watched").apply()
 
-    // --- Sleep timer ---
-
     fun saveSleepTimer(minutes: Int) = prefs.edit().putInt("sleep_timer_minutes", minutes).apply()
     fun getSleepTimer(): Int = prefs.getInt("sleep_timer_minutes", 0)
-
-    // BUG #6 FIX: Hapus nilai tersimpan agar timer tidak tersisa di prefs.
     fun clearSleepTimer() = prefs.edit().remove("sleep_timer_minutes").apply()
 }

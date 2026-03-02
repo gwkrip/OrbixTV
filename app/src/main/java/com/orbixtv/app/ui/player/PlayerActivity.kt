@@ -61,10 +61,9 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
         private const val TAG = "PlayerActivity"
 
-        private const val BUFFERING_TIMEOUT_MS          = 12_000L
-        private const val BUFFERING_TIMEOUT_KNOWN_MS    = 20_000L
-        private const val BUFFERING_TIMEOUT_DRM_MS      = 35_000L
-        private const val BUFFERING_TIMEOUT_MIDSTREAM_MS = 15_000L // timeout saat rebuffer mid-stream
+        private const val BUFFERING_TIMEOUT_MS       = 12_000L
+        private const val BUFFERING_TIMEOUT_KNOWN_MS = 20_000L
+        private const val BUFFERING_TIMEOUT_DRM_MS   = 35_000L
 
         val sharedOkHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
@@ -106,15 +105,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private val bufferingTimeoutHandler  = Handler(Looper.getMainLooper())
     private val bufferingTimeoutRunnable = Runnable { onBufferingTimeout() }
-    private var isBufferingTimeoutPending = false
 
     private var retryCount = 0
     private val MAX_AUTO_RETRY = 2
     private val retryHandler = Handler(Looper.getMainLooper())
-
-    // Flag: apakah stream sudah pernah masuk STATE_READY di sesi ini
-    // Digunakan untuk membedakan initial buffering vs mid-stream rebuffering
-    private var hasBeenReady = false
 
     private var preBufferPlayer: ExoPlayer? = null
     private var preBufferIndex  = -1
@@ -169,7 +163,6 @@ class PlayerActivity : AppCompatActivity() {
 
         showLoading(true)
         showError(null)
-        hasBeenReady = false  // reset flag saat setup baru dimulai
 
         val detectedType = resolveStreamType()
         Log.d(TAG, "resolveStreamType=$detectedType hint='$mimeTypeHint' url=$channelUrl")
@@ -251,40 +244,22 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun scheduleBufferingTimeout(delayMs: Long) {
         cancelBufferingTimeout()
-        isBufferingTimeoutPending = true
         bufferingTimeoutHandler.postDelayed(bufferingTimeoutRunnable, delayMs)
         Log.d(TAG, "Buffering timeout scheduled: ${delayMs}ms [fallback=$isUsingFallback stage=$fallbackStage]")
     }
 
     private fun cancelBufferingTimeout() {
         bufferingTimeoutHandler.removeCallbacks(bufferingTimeoutRunnable)
-        isBufferingTimeoutPending = false
     }
 
     private fun onBufferingTimeout() {
-        isBufferingTimeoutPending = false
         val state = player?.playbackState
         if (state != Player.STATE_BUFFERING && state != Player.STATE_IDLE) {
             Log.d(TAG, "Buffering timeout fired but state=$state, ignoring")
             return
         }
 
-        Log.w(TAG, "Buffering timeout! fallback=$isUsingFallback stage=$fallbackStage hasBeenReady=$hasBeenReady")
-
-        // FIX: Jika timeout terjadi saat mid-stream rebuffering (hasBeenReady=true),
-        // jangan jalankan fallback — langsung retry setupPlayer() dengan batas retry.
-        if (hasBeenReady) {
-            if (retryCount < MAX_AUTO_RETRY) {
-                retryCount++
-                Log.d(TAG, "Mid-stream rebuffering timeout, retry $retryCount/$MAX_AUTO_RETRY")
-                retryHandler.postDelayed({ if (!isFinishing) setupPlayer() }, 1_000L)
-            } else {
-                retryCount = 0
-                showLoading(false)
-                showError("Stream terputus. Periksa koneksi atau coba lagi.")
-            }
-            return
-        }
+        Log.w(TAG, "Buffering timeout! fallback=$isUsingFallback stage=$fallbackStage")
 
         if (isUsingFallback) {
             advanceFallbackStage()
@@ -327,11 +302,7 @@ class PlayerActivity : AppCompatActivity() {
                     Player.STATE_READY -> {
                         cancelBufferingTimeout()
                         retryHandler.removeCallbacksAndMessages(null)
-                        // FIX Bug 2 & 3: Jangan reset isUsingFallback di sini.
-                        // isUsingFallback hanya direset di setupPlayer() supaya fallback chain
-                        // tidak putus jika stream sempat READY lalu rebuffering.
-                        // retryCount direset cukup sekali saat stream benar-benar siap.
-                        hasBeenReady = true
+                        isUsingFallback = false
                         retryCount = 0
                         showLoading(false)
                         showError(null)
@@ -339,17 +310,7 @@ class PlayerActivity : AppCompatActivity() {
                         preBufferHandler.postDelayed({ startPreBuffer() }, 1_500)
                         Log.d(TAG, "STATE_READY — stream playing")
                     }
-                    Player.STATE_BUFFERING -> {
-                        showLoading(true)
-                        // FIX Bug 1: jadwalkan timeout untuk mid-stream rebuffering.
-                        // Jika stream sudah pernah READY lalu balik BUFFERING,
-                        // timeout harus tetap berjalan agar tidak loading selamanya.
-                        // Jika belum pernah READY, timeout sudah dijadwalkan di launchExoPlayer().
-                        if (hasBeenReady && !isBufferingTimeoutPending) {
-                            scheduleBufferingTimeout(BUFFERING_TIMEOUT_MIDSTREAM_MS)
-                            Log.d(TAG, "STATE_BUFFERING mid-stream — timeout ${BUFFERING_TIMEOUT_MIDSTREAM_MS}ms scheduled")
-                        }
-                    }
+                    Player.STATE_BUFFERING -> showLoading(true)
                     Player.STATE_ENDED -> {
                         cancelBufferingTimeout()
                         showError("Stream berakhir")
@@ -409,33 +370,14 @@ class PlayerActivity : AppCompatActivity() {
         return when (type) {
             M3uParser.StreamType.DASH -> {
                 val drmSource = tryBuildDrmMediaSource(uri, factory)
-                if (drmSource == null && licenseKey.isNotEmpty()) {
-                    Log.w(TAG, "DASH: licenseKey ada tapi DRM source gagal dibangun — stream mungkin tidak bisa diputar")
-                }
                 drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
                 )
             }
             M3uParser.StreamType.HLS -> {
-                // FIX Bug 3: Terapkan DRM ke HLS jika ada licenseKey.
-                // Sebelumnya HLS selalu dibuat tanpa DRM meskipun licenseKey ada.
-                if (licenseKey.isNotEmpty()) {
-                    val drmConfig = buildDrmConfiguration()
-                    if (drmConfig != null) {
-                        Log.d(TAG, "HLS+DRM: membangun HlsMediaSource dengan DRM")
-                        HlsMediaSource.Factory(factory).createMediaSource(
-                            MediaItem.Builder()
-                                .setUri(uri)
-                                .setDrmConfiguration(drmConfig)
-                                .build()
-                        )
-                    } else {
-                        Log.w(TAG, "HLS: licenseKey ada tapi DRM config gagal — melanjutkan tanpa DRM")
-                        HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
-                    }
-                } else {
-                    HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
-                }
+                // HLS dengan Widevine DRM (mis. fairplay fallback ke widevine di Android)
+                val drmMediaItem = buildDrmMediaItem(uri)
+                HlsMediaSource.Factory(factory).createMediaSource(drmMediaItem)
             }
             else ->
                 DefaultMediaSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri))
@@ -443,54 +385,28 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * Membangun hanya DrmConfiguration (tanpa MediaSource) untuk dipakai di HLS maupun DASH.
-     * Logika deteksi sama dengan tryBuildDrmMediaSource.
+     * Membuat MediaItem dengan DRM config (Widevine) jika licenseKey tersedia.
+     * Format licenseKey: "https://license-url|Header1=val1&Header2=val2"
      */
-    private fun buildDrmConfiguration(): MediaItem.DrmConfiguration? {
-        if (licenseKey.isEmpty()) return null
-        val lt = licenseType.lowercase().trim()
-        val effectiveLt: String = if (lt.isEmpty()) {
-            val keyTrimmed = licenseKey.trim()
-            if (keyTrimmed.startsWith("http://") || keyTrimmed.startsWith("https://")) "widevine"
-            else "clearkey"
-        } else lt
+    private fun buildDrmMediaItem(uri: Uri): MediaItem {
+        val builder = MediaItem.Builder().setUri(uri)
 
-        return try {
-            when {
-                effectiveLt.contains("clearkey") || effectiveLt == "org.w3.clearkey" -> {
-                    val keys = parseClearKeys(licenseKey)
-                    if (keys.isEmpty()) return null
-                    val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
-                    MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
-                        .setLicenseUri(inlineJson)
-                        .build()
-                }
-                effectiveLt.contains("widevine") ||
-                effectiveLt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
-                    val parts = licenseKey.split("|")
-                    val licenseUrl = parts[0].trim()
-                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
-                    MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                        .setLicenseUri(licenseUrl)
-                        .setLicenseRequestHeaders(requestHeaders)
-                        .build()
-                }
-                effectiveLt.contains("playready") ||
-                effectiveLt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
-                    val parts = licenseKey.split("|")
-                    val licenseUrl = parts[0].trim()
-                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
-                    MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
-                        .setLicenseUri(licenseUrl)
-                        .setLicenseRequestHeaders(requestHeaders)
-                        .build()
-                }
-                else -> null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "buildDrmConfiguration gagal: ${e.message}", e)
-            null
+        if (licenseKey.isNotEmpty() && licenseType.contains("widevine", ignoreCase = true)) {
+            val parts          = licenseKey.split("|")
+            val licenseUrl     = parts[0].trim()
+            val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+
+            Log.d(TAG, "buildDrmMediaItem: Widevine url=$licenseUrl headers=${requestHeaders.keys}")
+
+            builder.setDrmConfiguration(
+                MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    .setLicenseUri(licenseUrl)
+                    .setLicenseRequestHeaders(requestHeaders)
+                    .build()
+            )
         }
+
+        return builder.build()
     }
 
     private fun tryBuildDrmMediaSource(
@@ -501,31 +417,16 @@ class PlayerActivity : AppCompatActivity() {
 
         val lt = licenseType.lowercase().trim()
 
-        // FIX Bug 1: Jika licenseType kosong, jangan langsung asumsikan ClearKey.
-        // Deteksi otomatis berdasarkan format licenseKey:
-        // - Jika licenseKey adalah URL (http/https) → perlakukan sebagai Widevine
-        // - Jika licenseKey mengandung format "kid:key" → perlakukan sebagai ClearKey
-        val effectiveLt: String = if (lt.isEmpty()) {
-            val keyTrimmed = licenseKey.trim()
-            if (keyTrimmed.startsWith("http://") || keyTrimmed.startsWith("https://")) {
-                Log.d(TAG, "licenseType kosong, licenseKey adalah URL → auto-detect sebagai Widevine")
-                "widevine"
-            } else {
-                Log.d(TAG, "licenseType kosong, licenseKey bukan URL → auto-detect sebagai ClearKey")
-                "clearkey"
-            }
-        } else lt
-
         return try {
             when {
-                effectiveLt.contains("clearkey") || effectiveLt == "org.w3.clearkey" -> {
+                lt.isEmpty() || lt.contains("clearkey") || lt == "org.w3.clearkey" -> {
                     val keys = parseClearKeys(licenseKey)
                     if (keys.isEmpty()) {
-                        Log.w(TAG, "ClearKey: tidak ada key pair valid dari '$licenseKey'")
+                        Log.w(TAG, "ClearKey: no valid key pairs parsed from '$licenseKey'")
                         return null
                     }
                     val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
-                    Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON siap")
+                    Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON ready")
                     DashMediaSource.Factory(factory).createMediaSource(
                         MediaItem.Builder()
                             .setUri(uri)
@@ -538,8 +439,8 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 }
 
-                effectiveLt.contains("widevine") ||
-                effectiveLt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
+                lt.contains("widevine") ||
+                lt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
                     val parts          = licenseKey.split("|")
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
@@ -557,8 +458,8 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 }
 
-                effectiveLt.contains("playready") ||
-                effectiveLt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
+                lt.contains("playready") ||
+                lt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
                     val parts          = licenseKey.split("|")
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
@@ -577,12 +478,12 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 else -> {
-                    Log.w(TAG, "licenseType tidak dikenali: '$licenseType' — DRM dilewati")
+                    Log.w(TAG, "Unknown licenseType '$licenseType', skipping DRM")
                     null
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "DRM build gagal: ${e.message}", e)
+            Log.e(TAG, "DRM build failed: ${e.message}", e)
             null
         }
     }
@@ -604,16 +505,12 @@ class PlayerActivity : AppCompatActivity() {
     private fun parseClearKeys(licenseKey: String): List<Pair<String, String>> {
         val result = mutableListOf<Pair<String, String>>()
         for (raw in licenseKey.split(",")) {
-            val pair = raw.trim()
-            // FIX Bug 2: cek URL pada pair asli sebelum split by colon.
-            // Sebelumnya cek pada rawK setelah split, sehingga "https://..." → rawK = "//..."
-            // yang tidak pernah cocok dengan startsWith("https://").
-            if (pair.startsWith("http://") || pair.startsWith("https://")) continue
-
+            val pair     = raw.trim()
             val colonIdx = pair.indexOf(':')
             if (colonIdx <= 0) continue
             val rawKid = pair.substring(0, colonIdx).trim()
             val rawK   = pair.substring(colonIdx + 1).trim()
+            if (rawK.startsWith("http://") || rawK.startsWith("https://")) continue
 
             val kidB64 = toBase64Url(rawKid) ?: continue
             val kB64   = toBase64Url(rawK)   ?: continue

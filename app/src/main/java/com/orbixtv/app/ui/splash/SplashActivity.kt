@@ -50,34 +50,18 @@ class SplashActivity : AppCompatActivity() {
         binding.tvAppName.animate().alpha(1f).setDuration(800).setStartDelay(300).start()
         binding.tvTagline.animate().alpha(1f).setDuration(800).setStartDelay(600).start()
 
-        // ── BUG E FIX: Tidak lagi membuat MainViewModel di sini.
-        //
-        // Sebelumnya: ViewModelProvider(this)[MainViewModel::class.java]
-        // Masalah: setiap Activity memiliki ViewModel scope sendiri, sehingga
-        // MainViewModel.init{} memanggil loadPlaylist() lagi di SplashActivity,
-        // dan sekali lagi di MainActivity → playlist di-load DUA KALI setiap startup.
-        //
-        // Solusi: langsung observe ChannelRepository (singleton) dari SplashActivity.
-        // MainActivity tetap membuat ViewModelnya sendiri dan loadPlaylist() hanya
-        // dipanggil SEKALI dari sana.
-        // ──────────────────────────────────────────────────────────────────────
         val repo = ChannelRepository.getInstance(applicationContext)
 
-        // Kick off playlist load langsung dari repository — MainActivity akan
-        // mengamati hasilnya via ViewModel yang di-create setelah pindah layar.
         lifecycleScope.launch {
             val minSplashJob = launch { delay(1_500) }
 
-            // Tampilkan progress setelah 2 detik jika load masih berjalan
             launch {
                 delay(2_000)
                 if (!isFinishing) binding.progressLoading.visibility = View.VISIBLE
             }
 
-            // Mulai load playlist
             repo.loadPlaylist()
 
-            // Tunggu minimal splash time selesai, lalu pindah
             minSplashJob.join()
             if (!isFinishing) {
                 binding.progressLoading.visibility = View.GONE

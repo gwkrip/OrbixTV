@@ -19,13 +19,11 @@ class GroupAdapter(
 
     private val expandedGroups = mutableSetOf<String>()
 
-    // #11: Pool bersama — ViewHolder channel bisa di-recycle antar grup
     private val sharedChannelPool = RecyclerView.RecycledViewPool().apply {
         setMaxRecycledViews(0, 20)
     }
 
     override fun submitList(list: List<ChannelGroup>?) {
-        // Bersihkan nama grup yang sudah tidak ada agar expandedGroups tidak terus tumbuh
         if (list != null) {
             val validNames = list.map { it.name }.toSet()
             expandedGroups.retainAll(validNames)
@@ -58,7 +56,6 @@ class GroupAdapter(
                 layoutManager = LinearLayoutManager(itemView.context)
                 adapter = channelAdapter
                 isNestedScrollingEnabled = false
-                // #11: Gunakan shared pool antar semua nested RecyclerView
                 setRecycledViewPool(sharedChannelPool)
             }
         }
@@ -66,12 +63,11 @@ class GroupAdapter(
         fun bind(group: ChannelGroup) {
             val isExpanded = expandedGroups.contains(group.name)
 
-            binding.tvGroupName.text  = "${group.flagEmoji} ${group.name}"
+            binding.tvGroupName.text    = "${group.flagEmoji} ${group.name}"
             binding.tvChannelCount.text = "${group.channels.size} saluran"
-            binding.ivArrow.rotation  = if (isExpanded) 180f else 0f
+            binding.ivArrow.rotation    = if (isExpanded) 180f else 0f
             binding.rvChannels.visibility = if (isExpanded) View.VISIBLE else View.GONE
 
-            // #6: Hanya submit jika list memang berbeda — hindari DiffUtil run yang sia-sia
             if (channelAdapter.currentList !== group.channels) {
                 channelAdapter.submitList(group.channels)
             }

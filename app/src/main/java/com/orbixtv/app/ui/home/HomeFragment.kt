@@ -58,13 +58,9 @@ class HomeFragment : Fragment() {
 
         setupSearch()
         setupSettingsButton()
-        setupSortFilter()   // ⑦
+        setupSortFilter()
         observeData()
     }
-
-    // ========================
-    // Phone
-    // ========================
 
     private fun setupPhoneAdapters() {
         groupAdapter = GroupAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
@@ -78,10 +74,6 @@ class HomeFragment : Fragment() {
             adapter = searchAdapter
         }
     }
-
-    // ========================
-    // TV / Tablet
-    // ========================
 
     private fun setupTvAdapters() {
         tvGroupAdapter = TvGroupAdapter { group -> showChannelsForGroup(group) }
@@ -106,29 +98,23 @@ class HomeFragment : Fragment() {
         binding.tvSearchCount?.visibility = View.VISIBLE
     }
 
-    // ========================
-    // ⑦ Sort & Filter
-    // ========================
-
     private fun setupSortFilter() {
         binding.btnSortFilter?.setOnClickListener { showSortFilterDialog() }
     }
 
     private fun showSortFilterDialog() {
-        val sortLabels = arrayOf("Default", "Nama A–Z", "Nama Z–A", "Tipe Stream")
-        val sortValues = SortOrder.values()
+        val sortLabels   = arrayOf("Default", "Nama A–Z", "Nama Z–A", "Tipe Stream")
+        val sortValues   = SortOrder.values()
         val filterLabels = arrayOf("Semua", "HLS", "DASH", "RTMP")
         val filterValues = StreamFilter.values()
 
-        var selectedSort = sortValues.indexOf(viewModel.sortOrder.value)
+        var selectedSort   = sortValues.indexOf(viewModel.sortOrder.value)
         var selectedFilter = filterValues.indexOf(viewModel.streamFilter.value)
 
-        // Dialog sort
         AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.sort_filter_title))
             .setSingleChoiceItems(sortLabels, selectedSort) { _, which -> selectedSort = which }
             .setPositiveButton(getString(R.string.next)) { _, _ ->
-                // Dialog filter
                 AlertDialog.Builder(requireContext())
                     .setTitle(getString(R.string.filter_stream_type))
                     .setSingleChoiceItems(filterLabels, selectedFilter) { _, which ->
@@ -148,7 +134,6 @@ class HomeFragment : Fragment() {
 
     private fun applyCurrentSortFilter() {
         if (isTvLayout) {
-            // TV: refresh daftar grup dan panel kanan jika ada grup aktif
             val sorted = viewModel.groups.value.map { g ->
                 g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
             }
@@ -170,10 +155,6 @@ class HomeFragment : Fragment() {
             groupAdapter.submitList(newGroups)
         }
     }
-
-    // ========================
-    // Search
-    // ========================
 
     private fun setupSearch() {
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
@@ -235,7 +216,6 @@ class HomeFragment : Fragment() {
                         showChannelsForGroup(groups.first())
                     }
                 } else {
-                    // Apply current sort/filter saat data pertama load
                     val sorted = groups.map { g ->
                         g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
                     }

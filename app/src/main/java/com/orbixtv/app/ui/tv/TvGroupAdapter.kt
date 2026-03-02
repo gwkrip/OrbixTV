@@ -8,10 +8,6 @@ import androidx.recyclerview.widget.RecyclerView
 import com.orbixtv.app.data.ChannelGroup
 import com.orbixtv.app.databinding.ItemGroupTvBinding
 
-/**
- * Adapter untuk panel KIRI di layout TV.
- * Tidak expandable — klik grup → load channel di panel kanan.
- */
 class TvGroupAdapter(
     private val onGroupSelected: (ChannelGroup) -> Unit
 ) : ListAdapter<ChannelGroup, TvGroupAdapter.GroupViewHolder>(DiffCallback) {
@@ -36,10 +32,9 @@ class TvGroupAdapter(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(group: ChannelGroup, isSelected: Boolean) {
-            binding.tvGroupName.text = "${group.flagEmoji} ${group.name}"
+            binding.tvGroupName.text    = "${group.flagEmoji} ${group.name}"
             binding.tvChannelCount.text = "${group.channels.size}"
 
-            // Highlight grup yang sedang aktif
             binding.root.isActivated = isSelected
             binding.root.setBackgroundColor(
                 if (isSelected)
@@ -67,7 +62,6 @@ class TvGroupAdapter(
             }
 
             binding.root.setOnFocusChangeListener { _, hasFocus ->
-                // Scale up on D-pad focus
                 val scale = if (hasFocus) 1.03f else 1f
                 binding.root.animate().scaleX(scale).scaleY(scale).setDuration(120).start()
             }

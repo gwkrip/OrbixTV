@@ -12,12 +12,10 @@ import java.util.concurrent.TimeUnit
 
 object M3uParser {
 
-    private val LOGO_REGEX      = Regex("""tvg-logo="([^"]*)"""")
-    private val GROUP_REGEX     = Regex("""group-title="([^"]*)"""")
-    private val NAME_REGEX      = Regex("""tvg-name="([^"]*)"""")
-    // Tangkap atribut type= atau content-type= dari baris #EXTINF
-    // Contoh: #EXTINF:-1 type="vnd.apple.mpegurl" ...,Channel
-    private val TYPE_REGEX      = Regex("""(?:content-type|type)="([^"]*)"""", RegexOption.IGNORE_CASE)
+    private val LOGO_REGEX  = Regex("""tvg-logo="([^"]*)"""")
+    private val GROUP_REGEX = Regex("""group-title="([^"]*)"""")
+    private val NAME_REGEX  = Regex("""tvg-name="([^"]*)"""")
+    private val TYPE_REGEX  = Regex("""(?:content-type|type)="([^"]*)" """, RegexOption.IGNORE_CASE)
 
     private val groupFlagMap: Map<String, String> = mapOf(
         "INDONESIA" to "🇮🇩", "MALAYSIA"  to "🇲🇾", "SINGAPURA" to "🇸🇬",
@@ -28,25 +26,19 @@ object M3uParser {
         "TURKI"     to "🇹🇷"
     )
 
-    // Mapping MIME / vnd type string → StreamType internal.
-    // Urutan penting: lebih spesifik di atas.
     private val MIME_TO_STREAM_TYPE: List<Pair<String, StreamType>> = listOf(
-        // HLS — semua varian vnd / x-mpegurl
-        "vnd.apple.mpegurl"          to StreamType.HLS,
-        "x-mpegurl"                  to StreamType.HLS,
-        "application/x-mpegurl"      to StreamType.HLS,
-        "application/vnd.apple.mpegurl" to StreamType.HLS,
-        "audio/mpegurl"              to StreamType.HLS,
-        "audio/x-mpegurl"            to StreamType.HLS,
-        // DASH — varian vnd
-        "application/dash+xml"       to StreamType.DASH,
-        "vnd.ms-sstr+xml"            to StreamType.DASH,   // Smooth Streaming → diperlakukan DASH
-        "application/vnd.ms-sstr+xml" to StreamType.DASH,
-        // Smooth Streaming ISM juga kadang muncul sebagai DASH
+        "vnd.apple.mpegurl"                          to StreamType.HLS,
+        "x-mpegurl"                                  to StreamType.HLS,
+        "application/x-mpegurl"                      to StreamType.HLS,
+        "application/vnd.apple.mpegurl"              to StreamType.HLS,
+        "audio/mpegurl"                              to StreamType.HLS,
+        "audio/x-mpegurl"                            to StreamType.HLS,
+        "application/dash+xml"                       to StreamType.DASH,
+        "vnd.ms-sstr+xml"                            to StreamType.DASH,
+        "application/vnd.ms-sstr+xml"                to StreamType.DASH,
         "application/vnd.ms-playready.initiator+xml" to StreamType.DASH,
-        // RTMP
-        "video/rtmp"                 to StreamType.RTMP,
-        "rtmp"                       to StreamType.RTMP,
+        "video/rtmp"                                 to StreamType.RTMP,
+        "rtmp"                                       to StreamType.RTMP,
     )
 
     val sharedHttpClient: OkHttpClient by lazy {
@@ -57,7 +49,6 @@ object M3uParser {
             .followSslRedirects(true)
             .build()
     }
-
 
     suspend fun parseFromAssets(context: Context): List<ChannelGroup> = withContext(Dispatchers.IO) {
         try {
@@ -108,10 +99,6 @@ object M3uParser {
                         val key   = prop.substringBefore("=").trim()
                         val value = prop.substringAfter("=", "").trim()
                         if (key.isNotEmpty() && value.isNotEmpty()) {
-                            // [FIX BUG-B] Jangan overwrite jika key sudah ada.
-                            // inputstream.adaptive.stream_headers sering muncul
-                            // beberapa baris (Origin=, Referer=, User-Agent=, dll.)
-                            // Gabungkan dengan "&" agar semua header tersimpan.
                             val existing = pendingKodiProps[key]
                             pendingKodiProps[key] = if (existing != null) "$existing&$value" else value
                         }
@@ -145,7 +132,6 @@ object M3uParser {
                     val key   = prop.substringBefore("=").trim()
                     val value = prop.substringAfter("=", "").trim()
                     if (key.isNotEmpty() && value.isNotEmpty()) {
-                        // [FIX BUG-B] Gabungkan nilai duplicate key dengan "&"
                         val existing = pendingKodiProps[key]
                         pendingKodiProps[key] = if (existing != null) "$existing&$value" else value
                     }
@@ -180,19 +166,14 @@ object M3uParser {
         kodiProps: Map<String, String> = emptyMap()
     ): Channel? {
         return try {
-            val displayName = extinf.substringAfterLast(",").trim()
-            val tvgName     = NAME_REGEX.find(extinf)?.groupValues?.get(1) ?: ""
-            val name        = displayName.ifEmpty { tvgName.ifEmpty { "Unknown" } }
-            val logoUrl     = LOGO_REGEX.find(extinf)?.groupValues?.get(1) ?: ""
-            val group       = GROUP_REGEX.find(extinf)?.groupValues?.get(1) ?: "Lainnya"
-
-            // --- Baca atribut type= / content-type= dari #EXTINF ---
-            // Ini adalah cara OTT Navigator / VLC menentukan format stream
-            // tanpa harus mengandalkan ekstensi URL atau network sniffing.
+            val displayName    = extinf.substringAfterLast(",").trim()
+            val tvgName        = NAME_REGEX.find(extinf)?.groupValues?.get(1) ?: ""
+            val name           = displayName.ifEmpty { tvgName.ifEmpty { "Unknown" } }
+            val logoUrl        = LOGO_REGEX.find(extinf)?.groupValues?.get(1) ?: ""
+            val group          = GROUP_REGEX.find(extinf)?.groupValues?.get(1) ?: "Lainnya"
             val extinfMimeHint = TYPE_REGEX.find(extinf)?.groupValues?.get(1)?.trim() ?: ""
-
-            val streamUrl = url.substringBefore("|")
-            val params    = if (url.contains("|")) url.substringAfter("|") else ""
+            val streamUrl      = url.substringBefore("|")
+            val params         = if (url.contains("|")) url.substringAfter("|") else ""
 
             var userAgent   = ""
             var licenseType = ""
@@ -223,31 +204,21 @@ object M3uParser {
             }
             if (licenseKey.isEmpty()) licenseKey = kodiProps["inputstream.adaptive.license_key"] ?: ""
 
-            // [FIX BUG-B + BUG-C] stream_headers sekarang berisi SEMUA header yang digabung dengan "&"
-            // Contoh setelah fix Bug-B:
-            //   "Origin=https://www.indihometv.com&Referer=https://www.indihometv.com&User-Agent=..."
-            // Ekstrak setiap header yang relevan dari string gabungan ini.
             val streamHeaders = kodiProps["inputstream.adaptive.stream_headers"] ?: ""
             if (streamHeaders.isNotEmpty()) {
-                // Pisah per "&", tapi hati-hati: value bisa mengandung "&" juga
-                // Strategi: split berdasarkan pola "KEY=" yang diawali "&" atau awal string
-                // Pendekatan aman: split dan cari pasangan key=value
                 streamHeaders.split("&").forEach { header ->
                     val hTrimmed = header.trim()
                     when {
                         hTrimmed.startsWith("user-agent=", ignoreCase = true) && userAgent.isEmpty() ->
                             userAgent = hTrimmed.substringAfter("=").trimStart('|').trim()
-                                // Beberapa playlist menulis: "User-Agent=|user-agent=..." (pipe duplikat)
-                                // Ambil hanya bagian setelah pipe pertama jika ada
                                 .let { v -> if (v.startsWith("|")) v.substringAfter("|") else v }
                         hTrimmed.startsWith("referer=", ignoreCase = true) && referer.isEmpty() ->
                             referer = hTrimmed.substringAfter("=").trim('"')
-                        hTrimmed.startsWith("origin=", ignoreCase = true) -> { /* Origin → dipakai buildDataSourceFactory dari referer */ }
+                        hTrimmed.startsWith("origin=", ignoreCase = true) -> { }
                     }
                 }
             }
 
-            // Fallback lama jika stream_headers tidak menyertakan user-agent
             if (userAgent.isEmpty() && streamHeaders.contains("user-agent=", ignoreCase = true)) {
                 userAgent = streamHeaders
                     .split("&", "|")
@@ -255,10 +226,6 @@ object M3uParser {
                     ?.substringAfter("=") ?: ""
             }
 
-            // --- Deteksi tipe stream dengan prioritas bertingkat ---
-            // Prioritas 1: MIME hint dari atribut #EXTINF (type= / content-type=)
-            // Prioritas 2: #KODIPROP manifest_type
-            // Prioritas 3: Deteksi otomatis dari pola URL
             val kodiManifestType = kodiProps["inputstream.adaptive.manifest_type"]?.lowercase() ?: ""
             val streamType = when {
                 extinfMimeHint.isNotEmpty() ->
@@ -268,10 +235,8 @@ object M3uParser {
                 else -> detectStreamType(streamUrl)
             }
 
-            // Simpan mimeTypeHint mentah untuk dipakai PlayerActivity
-            // saat streamType masih PROGRESSIVE (perlu sniffing runtime).
             val mimeTypeHint = when {
-                extinfMimeHint.isNotEmpty() -> extinfMimeHint
+                extinfMimeHint.isNotEmpty()  -> extinfMimeHint
                 kodiManifestType.isNotEmpty() -> kodiManifestType
                 else -> ""
             }
@@ -299,27 +264,16 @@ object M3uParser {
         }
     }
 
-    /**
-     * Konversi string MIME / vnd type ke StreamType internal.
-     * Menerima format pendek ("vnd.apple.mpegurl") maupun penuh
-     * ("application/vnd.apple.mpegurl").
-     */
     fun mimeStringToStreamType(mime: String): StreamType {
         val lower = mime.lowercase().trim()
         return MIME_TO_STREAM_TYPE.firstOrNull { (pattern, _) ->
             lower.contains(pattern)
-        }?.second ?: detectStreamType(lower)   // fallback ke URL detection
+        }?.second ?: detectStreamType(lower)
     }
 
-    /**
-     * Deteksi tipe stream dari pola URL.
-     * Fungsi ini mencakup pola vnd/mpegurl yang biasa ditemukan
-     * di URL langsung (bukan hanya di atribut EXTINF).
-     */
     fun detectStreamType(url: String): StreamType {
         val lower = url.lowercase()
         return when {
-            // DASH
             lower.contains(".mpd")              ||
             lower.contains("/dash/")            ||
             lower.contains("manifest.mpd")      ||
@@ -330,7 +284,6 @@ object M3uParser {
             lower.contains(".ism(.mpd)")        ||
             lower.contains("dash+xml")          -> StreamType.DASH
 
-            // HLS — termasuk semua varian vnd / mpegurl
             lower.contains(".m3u8")             ||
             lower.contains("/hls/")             ||
             lower.contains("chunklist")         ||
@@ -339,14 +292,12 @@ object M3uParser {
             lower.contains("x-mpegurl")         ||
             lower.contains("mpegurl")           -> StreamType.HLS
 
-            // RTMP
             lower.startsWith("rtmp://")         ||
             lower.startsWith("rtmps://")        -> StreamType.RTMP
 
             else -> StreamType.PROGRESSIVE
         }
     }
-
 
     enum class StreamType(val label: String) {
         HLS("HLS"),

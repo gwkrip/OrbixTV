@@ -22,17 +22,10 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 
-// ── BUG A FIX: ConcurrentHashMap agar aman diakses dari main thread maupun
-// Dispatchers.IO tanpa ConcurrentModificationException.
 private val pingCache = ConcurrentHashMap<String, Pair<Int, Long>>()
 private const val PING_TTL_MS = 2 * 60 * 1000L
-
-// ── BUG D FIX: Batasi maksimal 6 ping berjalan sekaligus.
 private val pingSemaphore = Semaphore(6)
 
-// OkHttpClient bersama untuk semua ping — dibuat sekali, bukan per-request.
-// Membuat OkHttpClient baru setiap ping itu mahal: thread pool, connection pool,
-// dan cache semuanya harus diinisialisasi ulang.
 private val pingHttpClient = okhttp3.OkHttpClient.Builder()
     .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
     .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
@@ -73,7 +66,6 @@ class ChannelAdapter(
 
         private val cardView: CardView? = binding.root as? CardView
         private var pingJob: Job? = null
-        // Simpan ID channel yang sedang di-bind agar coroutine tidak update slot yang salah
         private var boundChannelId: String = ""
 
         fun bind(channel: Channel) {
@@ -142,7 +134,6 @@ class ChannelAdapter(
             pingJob?.cancel()
             pingJob = lifecycleOwner.lifecycleScope.launch {
                 val status = withContext(Dispatchers.IO) {
-                    // BUG D FIX: Tunggu slot semaphore sebelum ping
                     pingSemaphore.acquire()
                     try {
                         pingChannel(channel.url, channel.userAgent)
@@ -150,13 +141,8 @@ class ChannelAdapter(
                         pingSemaphore.release()
                     }
                 }
-                // BUG A FIX: ConcurrentHashMap — aman dari thread mana pun
                 pingCache[channel.id] = Pair(status, System.currentTimeMillis())
 
-                // BUG B FIX: Gunakan boundChannelId bukan NO_ID untuk cek
-                // apakah ViewHolder ini masih terikat ke channel yang sama.
-                // NO_POSITION (-1) != NO_ID.toInt() (-1) → keduanya -1, tapi
-                // boundChannelId check jauh lebih eksplisit dan tidak ambigu.
                 if (bindingAdapterPosition != RecyclerView.NO_POSITION &&
                     boundChannelId == channel.id
                 ) {
@@ -165,15 +151,6 @@ class ChannelAdapter(
             }
         }
 
-        /**
-         * BUG C FIX: Ganti HttpURLConnection.HEAD dengan OkHttp GET.
-         * Pakai [pingHttpClient] yang dibuat sekali — bukan per-request.
-         *
-         * Alasan:
-         * – Banyak server IPTV return 405 untuk HEAD → channel valid ditandai offline
-         * – HttpURLConnection tidak mengikuti redirect HTTPS→HTTP
-         * – GET + cancel setelah connect = ringan seperti HEAD, tapi lebih kompatibel
-         */
         private fun pingChannel(url: String, userAgent: String): Int {
             return try {
                 val request = okhttp3.Request.Builder()
@@ -185,7 +162,6 @@ class ChannelAdapter(
                     .build()
 
                 pingHttpClient.newCall(request).execute().use { response ->
-                    // 2xx–403 = server hidup (403/401 = autentikasi butuh, tapi server jalan)
                     if (response.code in 200..403) 1 else -1
                 }
             } catch (e: Exception) {

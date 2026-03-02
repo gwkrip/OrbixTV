@@ -20,19 +20,14 @@ class MainActivity : AppCompatActivity() {
 
         val navController = findNavController(R.id.nav_host_fragment)
 
-        // Deteksi apakah ini layout TV/tablet (sw720dp) atau phone
-        val sideNav = binding.root.findViewById<NavigationRailView?>(R.id.side_nav)
+        val sideNav   = binding.root.findViewById<NavigationRailView?>(R.id.side_nav)
         val bottomNav = binding.root.findViewById<BottomNavigationView?>(R.id.bottom_nav)
 
         when {
-            sideNav != null && sideNav.visibility != View.GONE -> {
-                // Android TV / tablet: pakai NavigationRail di sisi kiri
+            sideNav != null && sideNav.visibility != View.GONE ->
                 sideNav.setupWithNavController(navController)
-            }
-            bottomNav != null && bottomNav.visibility != View.GONE -> {
-                // Phone: pakai BottomNavigationView
+            bottomNav != null && bottomNav.visibility != View.GONE ->
                 bottomNav.setupWithNavController(navController)
-            }
         }
     }
 }

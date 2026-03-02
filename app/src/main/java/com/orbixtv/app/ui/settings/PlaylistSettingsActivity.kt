@@ -31,7 +31,6 @@ class PlaylistSettingsActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.btnBack.setOnClickListener { finish() }
 
-        // Tampilkan URL tersimpan
         val savedUrl = viewModel.getPlaylistUrl()
         if (savedUrl.isNotEmpty()) {
             binding.etPlaylistUrl.setText(savedUrl)

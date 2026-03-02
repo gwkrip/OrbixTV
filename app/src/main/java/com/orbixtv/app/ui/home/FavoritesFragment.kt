@@ -33,7 +33,6 @@ class FavoritesFragment : Fragment() {
 
     private var allFavorites: List<Channel> = emptyList()
 
-    // ⑪ Launcher untuk file picker import
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -69,7 +68,6 @@ class FavoritesFragment : Fragment() {
         observeFavorites()
     }
 
-    // ⑥ Search dalam daftar favorit
     private fun setupSearch() {
         binding.searchViewFavorites?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?) = true
@@ -88,18 +86,13 @@ class FavoritesFragment : Fragment() {
         })
     }
 
-    // ⑪ Export & Import favorit
     private fun setupExportImport() {
         binding.btnExport?.setOnClickListener {
             viewModel.exportFavorites { file ->
-                if (file != null) {
-                    showExportSuccess(file)
-                } else {
-                    showSimpleMessage(getString(R.string.export_failed))
-                }
+                if (file != null) showExportSuccess(file)
+                else showSimpleMessage(getString(R.string.export_failed))
             }
         }
-
         binding.btnImport?.setOnClickListener {
             importLauncher.launch("application/json")
         }
@@ -112,7 +105,7 @@ class FavoritesFragment : Fragment() {
             tempFile.outputStream().use { out -> inputStream.copyTo(out) }
 
             viewModel.importFavorites(tempFile) { count ->
-                tempFile.delete()   // bersihkan temp file setelah import selesai
+                tempFile.delete()
                 val msg = when {
                     count > 0  -> getString(R.string.import_success, count)
                     count == 0 -> getString(R.string.import_no_new)
@@ -159,7 +152,6 @@ class FavoritesFragment : Fragment() {
                 adapter.submitList(favs)
                 binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
 
-                // Tampilkan search bar hanya kalau ada data
                 binding.searchViewFavorites?.visibility =
                     if (favs.size > 5) View.VISIBLE else View.GONE
 

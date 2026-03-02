@@ -49,7 +49,6 @@ class RecentFragment : Fragment() {
             adapter = this@RecentFragment.adapter
         }
 
-        // #4: Tombol hapus riwayat dengan konfirmasi
         binding.btnClearHistory.setOnClickListener {
             val dialog = AlertDialog.Builder(requireContext())
                 .setTitle(getString(R.string.dialog_clear_history_title))
@@ -60,16 +59,11 @@ class RecentFragment : Fragment() {
                     refreshRecent()
                 }
                 .setNegativeButton(getString(R.string.dialog_action_cancel), null)
-                // Default focus ke Batal — mencegah hapus tidak sengaja, penting di TV
                 .create()
 
             dialog.show()
-
-            // Warnai tombol Hapus merah — sinyal visual aksi destruktif
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 ?.setTextColor(requireContext().getColor(R.color.accent_red))
-
-            // Default fokus D-pad ke tombol Batal (aman untuk TV remote)
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.requestFocus()
         }
 
@@ -89,15 +83,11 @@ class RecentFragment : Fragment() {
         val recent = viewModel.getRecentChannels()
         adapter.submitList(recent)
 
-        // #12: Update jumlah riwayat di header
         binding.tvRecentCount.text = if (recent.isEmpty()) "" else "${recent.size} riwayat"
 
         val isEmpty = recent.isEmpty()
-
-        // #4: Sembunyikan tombol hapus jika tidak ada riwayat
         binding.btnClearHistory.visibility = if (isEmpty) View.GONE else View.VISIBLE
 
-        // #13: Animasi fade transisi empty state ↔ list
         if (isEmpty && binding.rvRecent.visibility == View.VISIBLE) {
             binding.rvRecent.animate().alpha(0f).setDuration(200)
                 .withEndAction {

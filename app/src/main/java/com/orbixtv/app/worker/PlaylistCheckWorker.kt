@@ -13,26 +13,19 @@ import com.orbixtv.app.MainActivity
 import com.orbixtv.app.R
 import com.orbixtv.app.data.ChannelRepository
 
-/**
- * ⑫ Worker yang berjalan periodik via WorkManager.
- * Mengecek apakah playlist URL eksternal masih bisa diakses.
- * Jika gagal, kirim notifikasi ke user.
- */
 class PlaylistCheckWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
 
     companion object {
-        const val WORK_NAME         = "playlist_check"
-        const val CHANNEL_ID        = "orbixtv_playlist"
-        const val NOTIF_ID          = 1001
+        const val WORK_NAME  = "playlist_check"
+        const val CHANNEL_ID = "orbixtv_playlist"
+        const val NOTIF_ID   = 1001
     }
 
     override suspend fun doWork(): Result {
         val repo = ChannelRepository.getInstance(applicationContext)
-
-        // Tidak ada URL eksternal — tidak perlu cek
         if (repo.getPlaylistUrl().isEmpty()) return Result.success()
 
         val reachable = repo.isPlaylistUrlReachable()
@@ -45,7 +38,6 @@ class PlaylistCheckWorker(
         val nm = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE)
                 as NotificationManager
 
-        // Buat channel (API 26+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val ch = NotificationChannel(
                 CHANNEL_ID,

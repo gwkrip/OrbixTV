@@ -15,9 +15,6 @@ import java.io.File
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    // BUG #1 + #14 FIX: Gunakan singleton repository agar semua
-    // Activity (PlayerActivity, PlaylistSettingsActivity) berbagi
-    // state channel yang sama dengan MainActivity.
     private val repository = ChannelRepository.getInstance(application)
 
     private val _isLoading = MutableStateFlow(true)
@@ -51,7 +48,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- Playlist URL ---
     fun getPlaylistUrl(): String = repository.getPlaylistUrl()
 
     fun setPlaylistUrl(url: String) {
@@ -59,7 +55,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             _loadError.value = null
-            _loadError.value = repository.reloadPlaylist()   // paksa reload URL baru
+            _loadError.value = repository.reloadPlaylist()
             _isLoading.value = false
         }
     }
@@ -69,18 +65,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             _loadError.value = null
-            _loadError.value = repository.reloadPlaylist()   // paksa kembali ke assets
+            _loadError.value = repository.reloadPlaylist()
             _isLoading.value = false
         }
     }
 
-    // --- Search ---
     fun search(query: String) {
         _searchResults.value = if (query.isBlank()) emptyList()
         else repository.searchChannels(query)
     }
 
-    // --- Sort & Filter ---
     fun setSortOrder(order: SortOrder) { _sortOrder.value = order }
     fun setStreamFilter(filter: StreamFilter) { _streamFilter.value = filter }
 
@@ -91,7 +85,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             source ?: repository.getAllChannels()
         )
 
-    // --- Favorites ---
     fun toggleFavorite(channelId: String) {
         viewModelScope.launch { repository.toggleFavorite(channelId) }
     }
@@ -105,15 +98,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { onResult(repository.importFavorites(file)) }
     }
 
-    // --- Recent ---
     fun getAllChannels(): List<Channel> = repository.getAllChannels()
     fun getRecentChannels(): List<Channel> = repository.getRecentChannels()
     fun onChannelWatched(channelId: String) = repository.addToLastWatched(channelId)
     fun clearHistory() = repository.clearHistory()
 
-    // --- Sleep Timer ---
     fun setSleepTimer(minutes: Int) = repository.saveSleepTimer(minutes)
-
-    // BUG #6 FIX: Implementasi nyata — hapus dari SharedPreferences.
     fun clearSleepTimer() = repository.clearSleepTimer()
 }

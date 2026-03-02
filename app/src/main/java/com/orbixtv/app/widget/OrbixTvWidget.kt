@@ -30,11 +30,6 @@ class OrbixTvWidget : AppWidgetProvider() {
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_orbixtv)
 
-            // BUG #20 FIX:
-            // 1. Gunakan singleton getInstance() agar data channel tersedia
-            //    (bukan instance baru yang channelById-nya kosong).
-            // 2. Bungkus dalam try-catch agar widget tidak crash jika
-            //    repository belum terinisialisasi atau data kosong.
             try {
                 val repo = ChannelRepository.getInstance(context)
                 val recent = repo.getRecentChannels()
@@ -51,7 +46,6 @@ class OrbixTvWidget : AppWidgetProvider() {
                     )
                 }
             } catch (e: Exception) {
-                // Fallback aman — widget tetap tampil meski data gagal diambil
                 views.setTextViewText(R.id.widget_channel_name, "OrbixTV")
                 views.setTextViewText(R.id.widget_subtitle, "")
             }
