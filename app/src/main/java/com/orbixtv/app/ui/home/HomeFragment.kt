@@ -280,6 +280,7 @@ class HomeFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_LICENSE_KEY, channel.licenseKey)
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
+            putExtra(PlayerActivity.EXTRA_MIME_TYPE_HINT, channel.mimeTypeHint)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
         })
     }

@@ -11,8 +11,10 @@ data class Channel(
     val licenseKey: String = "",
     val referer: String = "",
     val isFavorite: Boolean = false,
-    val streamType: String = "LIVE",
-    // Status ping: 0 = belum dicek, 1 = online, -1 = offline
+    val streamType: String = "PROGRESSIVE",
+    // Hint MIME type eksplisit dari atribut #EXTINF (type=, content-type=).
+    // Kosong = tidak ada hint, PlayerActivity akan sniff dari URL / HTTP header.
+    val mimeTypeHint: String = "",
     val pingStatus: Int = 0
 )
 
@@ -22,8 +24,5 @@ data class ChannelGroup(
     val flagEmoji: String = ""
 )
 
-// Enum sort channel
 enum class SortOrder { DEFAULT, NAME_ASC, NAME_DESC, TYPE }
-
-// Enum filter stream type
 enum class StreamFilter { ALL, HLS, DASH, RTMP }

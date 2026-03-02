@@ -21,6 +21,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -39,21 +40,24 @@ import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
+import kotlinx.coroutines.launch
 
 @UnstableApi
 class PlayerActivity : AppCompatActivity() {
 
     companion object {
-        const val EXTRA_CHANNEL_NAME  = "channel_name"
-        const val EXTRA_CHANNEL_URL   = "channel_url"
-        const val EXTRA_CHANNEL_LOGO  = "channel_logo"
-        const val EXTRA_USER_AGENT    = "user_agent"
-        const val EXTRA_LICENSE_TYPE  = "license_type"
-        const val EXTRA_LICENSE_KEY   = "license_key"
-        const val EXTRA_REFERER       = "referer"
-        const val EXTRA_CHANNEL_ID    = "channel_id"
-        const val EXTRA_CHANNEL_INDEX = "channel_index"
-        // BUG #5 FIX: EXTRA_CHANNEL_COUNT dihapus — tidak pernah dibaca.
+        const val EXTRA_CHANNEL_NAME   = "channel_name"
+        const val EXTRA_CHANNEL_URL    = "channel_url"
+        const val EXTRA_CHANNEL_LOGO   = "channel_logo"
+        const val EXTRA_USER_AGENT     = "user_agent"
+        const val EXTRA_LICENSE_TYPE   = "license_type"
+        const val EXTRA_LICENSE_KEY    = "license_key"
+        const val EXTRA_REFERER        = "referer"
+        const val EXTRA_CHANNEL_ID     = "channel_id"
+        const val EXTRA_CHANNEL_INDEX  = "channel_index"
+        // Hint MIME type dari atribut #EXTINF (type= / content-type=).
+        // Dipakai untuk channel vnd yang URL-nya tidak mengandung pola HLS/DASH.
+        const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
         private const val TAG = "PlayerActivity"
     }
 
@@ -61,46 +65,36 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private lateinit var viewModel: MainViewModel
 
-    private var channelName = ""
-    private var channelUrl  = ""
-    private var channelLogo = ""
-    private var userAgent   = ""
-    private var licenseType = ""
-    private var licenseKey  = ""
-    private var referer     = ""
-    private var channelId   = ""
+    private var channelName  = ""
+    private var channelUrl   = ""
+    private var channelLogo  = ""
+    private var userAgent    = ""
+    private var licenseType  = ""
+    private var licenseKey   = ""
+    private var referer      = ""
+    private var channelId    = ""
+    private var mimeTypeHint = ""   // Hint vnd/mpegurl dari #EXTINF
 
-    // Sleep timer
     private var sleepTimer: CountDownTimer? = null
     private var sleepTimerMinutesLeft = 0
 
-    // Auto-hide top bar
     private val hideUiHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val hideUiRunnable = Runnable { hideTopBar() }
     private val UI_HIDE_DELAY_MS = 4_000L
 
-    // Channel list untuk navigasi remote
     private var allChannels: List<Channel> = emptyList()
     private var currentChannelIndex = -1
 
-    // BUG #3 FIX: retryCount dan retryHandler dibersihkan sebelum setiap
-    // setupPlayer() agar tidak ada retry yang tertinggal dari channel lama.
     private var retryCount = 0
     private val MAX_AUTO_RETRY = 2
     private val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    // Pre-buffer
     private var preBufferPlayer: ExoPlayer? = null
     private var preBufferIndex: Int = -1
 
-    // Lock orientasi
     private var isOrientationLocked = false
 
-    // BUG #13 FIX: Handler gesture overlay dibuat sekali di class level,
-    // bukan baru setiap kali handleGestureMove dipanggil.
     private val gestureOverlayHandler = android.os.Handler(android.os.Looper.getMainLooper())
-
-    // Gesture — volume & brightness
     private lateinit var gestureDetector: GestureDetector
     private var audioManager: AudioManager? = null
     private var initialVolume = 0
@@ -110,8 +104,6 @@ class PlayerActivity : AppCompatActivity() {
     private var gestureStartX = 0f
     private var isVolumeGesture = false
 
-    // BUG #19 FIX: Track apakah player sedang play sebelum onPause
-    // agar onResume tidak auto-play saat user sengaja mem-pause.
     private var wasPlayingBeforePause = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,27 +111,22 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // BUG #1 FIX: ViewModelProvider(this) tetap dipakai untuk lifecycle,
-        // tetapi MainViewModel di dalamnya kini menggunakan ChannelRepository.
-        // getInstance() (singleton) — sehingga data channel dari MainActivity
-        // langsung tersedia tanpa perlu load ulang.
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enterFullscreen()
 
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME) ?: ""
-        channelUrl  = intent.getStringExtra(EXTRA_CHANNEL_URL)  ?: ""
-        channelLogo = intent.getStringExtra(EXTRA_CHANNEL_LOGO) ?: ""
-        userAgent   = intent.getStringExtra(EXTRA_USER_AGENT)   ?: ""
-        licenseType = intent.getStringExtra(EXTRA_LICENSE_TYPE) ?: ""
-        licenseKey  = intent.getStringExtra(EXTRA_LICENSE_KEY)  ?: ""
-        referer     = intent.getStringExtra(EXTRA_REFERER)      ?: ""
-        channelId   = intent.getStringExtra(EXTRA_CHANNEL_ID)   ?: ""
+        channelName  = intent.getStringExtra(EXTRA_CHANNEL_NAME)   ?: ""
+        channelUrl   = intent.getStringExtra(EXTRA_CHANNEL_URL)    ?: ""
+        channelLogo  = intent.getStringExtra(EXTRA_CHANNEL_LOGO)   ?: ""
+        userAgent    = intent.getStringExtra(EXTRA_USER_AGENT)     ?: ""
+        licenseType  = intent.getStringExtra(EXTRA_LICENSE_TYPE)   ?: ""
+        licenseKey   = intent.getStringExtra(EXTRA_LICENSE_KEY)    ?: ""
+        referer      = intent.getStringExtra(EXTRA_REFERER)        ?: ""
+        channelId    = intent.getStringExtra(EXTRA_CHANNEL_ID)     ?: ""
+        mimeTypeHint = intent.getStringExtra(EXTRA_MIME_TYPE_HINT) ?: ""
 
         val intentIndex = intent.getIntExtra(EXTRA_CHANNEL_INDEX, -1)
-        // BUG #1 FIX: Karena repository singleton, getAllChannels() sudah
-        // punya data yang di-load oleh MainActivity sebelumnya.
         allChannels = viewModel.getAllChannels()
         currentChannelIndex = if (intentIndex >= 0) intentIndex
                               else allChannels.indexOfFirst { it.id == channelId }
@@ -184,12 +171,9 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLiveBadge() {
-        // BUG #12 FIX: Cek "PROGRESSIVE" bukan "LIVE" lagi.
         val isLive = currentChannelIndex >= 0 &&
             allChannels.isNotEmpty() &&
-            allChannels[currentChannelIndex].streamType.let {
-                it == "HLS" || it == "RTMP"
-            }
+            allChannels[currentChannelIndex].streamType.let { it == "HLS" || it == "RTMP" }
         val liveBadge = binding.playerView.findViewById<android.widget.TextView?>(R.id.tv_live_badge)
         liveBadge?.visibility = if (isLive) View.VISIBLE else View.GONE
     }
@@ -206,22 +190,63 @@ class PlayerActivity : AppCompatActivity() {
     // Player Setup
     // ========================
 
+    /**
+     * Siapkan & putar stream.
+     *
+     * Alur deteksi tipe stream:
+     * 1. Cek mimeTypeHint dari atribut #EXTINF (type= / content-type=)
+     * 2. Cek pola URL (ekstensi, path keyword)
+     * 3. Jika masih PROGRESSIVE (ambigu) → HTTP HEAD sniff Content-Type
+     * 4. Jika sniff juga gagal → DefaultMediaSourceFactory (ExoPlayer auto-detect)
+     */
     private fun setupPlayer() {
         if (channelUrl.isEmpty()) {
             showError("URL stream tidak valid")
             return
         }
 
-        // BUG #3 FIX: Batalkan semua retry yang sedang berjalan sebelum
-        // inisialisasi player baru agar tidak ada retry dari channel lama
-        // yang muncul setelah channel sudah berganti.
         retryHandler.removeCallbacksAndMessages(null)
         retryCount = 0
 
         showLoading(true)
         showError(null)
 
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory().apply {
+        // Tentukan stream type dari hint atau URL
+        val detectedType = when {
+            mimeTypeHint.isNotEmpty() -> M3uParser.mimeStringToStreamType(mimeTypeHint)
+            else                      -> M3uParser.detectStreamType(channelUrl)
+        }
+
+        if (detectedType == M3uParser.StreamType.PROGRESSIVE) {
+            // Tipe ambigu → sniff dulu via HTTP HEAD, baru build player
+            lifecycleScope.launch {
+                val sniffed = M3uParser.sniffContentType(channelUrl, userAgent, referer)
+                Log.d(TAG, "Content-Type sniff result: $sniffed for $channelUrl")
+                buildAndStartPlayer(sniffed ?: detectedType)
+            }
+        } else {
+            buildAndStartPlayer(detectedType)
+        }
+    }
+
+    private fun buildAndStartPlayer(streamType: M3uParser.StreamType) {
+        val httpDataSourceFactory = buildDataSourceFactory()
+        val mediaSource = buildMediaSource(channelUrl, streamType, httpDataSourceFactory)
+
+        val exo = player ?: ExoPlayer.Builder(this).build().also { newExo ->
+            player = newExo
+            binding.playerView.player = newExo
+            attachPlayerListener(newExo)
+        }
+
+        exo.stop()
+        exo.setMediaSource(mediaSource)
+        exo.playWhenReady = true
+        exo.prepare()
+    }
+
+    private fun buildDataSourceFactory(): DefaultHttpDataSource.Factory {
+        return DefaultHttpDataSource.Factory().apply {
             setUserAgent(userAgent.ifEmpty {
                 "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
             })
@@ -241,23 +266,8 @@ class PlayerActivity : AppCompatActivity() {
             setConnectTimeoutMs(15_000)
             setReadTimeoutMs(15_000)
         }
-
-        val mediaSource = buildMediaSource(channelUrl, httpDataSourceFactory)
-
-        val exo = player ?: ExoPlayer.Builder(this).build().also { newExo ->
-            player = newExo
-            binding.playerView.player = newExo
-            attachPlayerListener(newExo)
-        }
-
-        exo.stop()
-        exo.setMediaSource(mediaSource)
-        exo.playWhenReady = true
-        exo.prepare()
     }
 
-    // BUG #2 FIX: Dipisah agar bisa dipanggil ulang saat consumePreBuffer
-    // mengganti player instance — pre-buffer player pun mendapat listener.
     private fun attachPlayerListener(exo: ExoPlayer) {
         exo.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -292,12 +302,17 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
+    /**
+     * Bangun MediaSource yang tepat berdasarkan StreamType yang sudah diketahui.
+     * Tidak ada lagi deteksi ulang di sini — type sudah final dari setupPlayer().
+     */
     private fun buildMediaSource(
         url: String,
+        streamType: M3uParser.StreamType,
         dataSourceFactory: DefaultHttpDataSource.Factory
     ): MediaSource {
         val uri = Uri.parse(url)
-        return when (M3uParser.detectStreamType(url)) {
+        return when (streamType) {
             M3uParser.StreamType.DASH -> {
                 if (licenseType.isNotEmpty() && licenseKey.isNotEmpty()) {
                     buildDashWithClearKey(uri, dataSourceFactory)
@@ -308,10 +323,16 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             M3uParser.StreamType.HLS -> {
-                HlsMediaSource.Factory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
+                // Set MIME type eksplisit agar ExoPlayer tidak salah detect
+                HlsMediaSource.Factory(dataSourceFactory).createMediaSource(
+                    MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_M3U8).build()
+                )
             }
             else -> {
-                DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(MediaItem.fromUri(uri))
+                // PROGRESSIVE / RTMP — biarkan ExoPlayer auto-detect dari respons
+                DefaultMediaSourceFactory(dataSourceFactory).createMediaSource(
+                    MediaItem.fromUri(uri)
+                )
             }
         }
     }
@@ -323,7 +344,6 @@ class PlayerActivity : AppCompatActivity() {
         return try {
             val keySets = parseClearKeys(licenseKey)
             if (keySets.isEmpty()) {
-                // BUG #18 FIX: Jika tidak ada key valid, jangan coba DRM.
                 Log.w(TAG, "No valid ClearKey pairs found, skipping DRM")
                 return DashMediaSource.Factory(dataSourceFactory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
@@ -347,8 +367,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    // BUG #18 FIX: Validasi bahwa setiap hex string valid (panjang genap,
-    // hanya karakter hex) sebelum dikirim ke hexToBase64Url.
     private fun parseClearKeys(licenseKey: String): List<Pair<String, String>> {
         return licenseKey.split(",").mapNotNull { pair ->
             val parts = pair.trim().split(":")
@@ -371,8 +389,6 @@ class PlayerActivity : AppCompatActivity() {
         return android.util.Base64.encodeToString(encoded.toByteArray(), android.util.Base64.NO_WRAP)
     }
 
-    // BUG #4 FIX: isValidHex() di atas sudah memastikan hex.length genap
-    // sebelum fungsi ini dipanggil — exception tidak mungkin terjadi lagi.
     private fun hexToBase64Url(hex: String): String {
         val bytes = ByteArray(hex.length / 2) { i ->
             hex.substring(i * 2, i * 2 + 2).toInt(16).toByte()
@@ -390,16 +406,8 @@ class PlayerActivity : AppCompatActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         showTopBarTemporarily()
         return when (keyCode) {
-            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                player?.play()
-                showToastBrief("▶ Play")
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                player?.pause()
-                showToastBrief("⏸ Pause")
-                true
-            }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> { player?.play(); showToastBrief("▶ Play"); true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> { player?.pause(); showToastBrief("⏸ Pause"); true }
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
             KeyEvent.KEYCODE_DPAD_CENTER,
             KeyEvent.KEYCODE_ENTER -> {
@@ -409,17 +417,13 @@ class PlayerActivity : AppCompatActivity() {
                 }
                 true
             }
-            KeyEvent.KEYCODE_MEDIA_STOP -> {
-                player?.stop()
-                showToastBrief("⏹ Stop")
-                true
-            }
+            KeyEvent.KEYCODE_MEDIA_STOP -> { player?.stop(); showToastBrief("⏹ Stop"); true }
             KeyEvent.KEYCODE_CHANNEL_UP,
-            KeyEvent.KEYCODE_PAGE_UP -> { navigateChannel(+1); true }
+            KeyEvent.KEYCODE_PAGE_UP    -> { navigateChannel(+1); true }
             KeyEvent.KEYCODE_CHANNEL_DOWN,
-            KeyEvent.KEYCODE_PAGE_DOWN -> { navigateChannel(-1); true }
-            KeyEvent.KEYCODE_BACK -> { finish(); true }
-            KeyEvent.KEYCODE_MENU -> { showSleepTimerDialog(); true }
+            KeyEvent.KEYCODE_PAGE_DOWN  -> { navigateChannel(-1); true }
+            KeyEvent.KEYCODE_BACK       -> { finish(); true }
+            KeyEvent.KEYCODE_MENU       -> { showSleepTimerDialog(); true }
             else -> super.onKeyDown(keyCode, event)
         }
     }
@@ -429,10 +433,8 @@ class PlayerActivity : AppCompatActivity() {
             allChannels = viewModel.getAllChannels()
             currentChannelIndex = allChannels.indexOfFirst { it.id == channelId }
         }
-        if (allChannels.isEmpty()) {
-            showToastBrief("Daftar channel belum tersedia")
-            return
-        }
+        if (allChannels.isEmpty()) { showToastBrief("Daftar channel belum tersedia"); return }
+
         val nextIndex = when {
             currentChannelIndex < 0 -> 0
             else -> (currentChannelIndex + offset + allChannels.size) % allChannels.size
@@ -440,14 +442,15 @@ class PlayerActivity : AppCompatActivity() {
         val nextChannel = allChannels[nextIndex]
         currentChannelIndex = nextIndex
 
-        channelName = nextChannel.name
-        channelUrl  = nextChannel.url
-        channelLogo = nextChannel.logoUrl
-        userAgent   = nextChannel.userAgent
-        licenseType = nextChannel.licenseType
-        licenseKey  = nextChannel.licenseKey
-        referer     = nextChannel.referer
-        channelId   = nextChannel.id
+        channelName  = nextChannel.name
+        channelUrl   = nextChannel.url
+        channelLogo  = nextChannel.logoUrl
+        userAgent    = nextChannel.userAgent
+        licenseType  = nextChannel.licenseType
+        licenseKey   = nextChannel.licenseKey
+        referer      = nextChannel.referer
+        channelId    = nextChannel.id
+        mimeTypeHint = nextChannel.mimeTypeHint   // Propagate hint ke channel berikutnya
 
         viewModel.onChannelWatched(channelId)
 
@@ -469,8 +472,6 @@ class PlayerActivity : AppCompatActivity() {
             player?.release()
             player = buffered
             binding.playerView.player = buffered
-            // BUG #2 FIX: Pasang listener ke pre-buffer player yang
-            // diambil alih, agar error/retry/loading tetap berfungsi.
             attachPlayerListener(buffered)
             buffered.playWhenReady = true
             showLoading(false)
@@ -492,9 +493,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.tvChannelPosition.visibility = View.VISIBLE
         hidePositionHandler.removeCallbacksAndMessages(null)
         hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
-
-        // BUG #17 FIX: Hapus postDelayed pre-buffer dari sini — sudah
-        // ada di STATE_READY listener (setupPlayer). Double-trigger dihindari.
     }
 
     // ========================
@@ -519,13 +517,26 @@ class PlayerActivity : AppCompatActivity() {
                 setReadTimeoutMs(10_000)
                 if (nextChannel.userAgent.isNotEmpty()) setUserAgent(nextChannel.userAgent)
             }
-            val source = when (M3uParser.detectStreamType(nextChannel.url)) {
+
+            val detectedType = when {
+                nextChannel.mimeTypeHint.isNotEmpty() ->
+                    M3uParser.mimeStringToStreamType(nextChannel.mimeTypeHint)
+                else ->
+                    M3uParser.detectStreamType(nextChannel.url)
+            }
+
+            val source = when (detectedType) {
                 M3uParser.StreamType.DASH ->
                     androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory)
                         .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
                 M3uParser.StreamType.HLS ->
                     androidx.media3.exoplayer.hls.HlsMediaSource.Factory(factory)
-                        .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
+                        .createMediaSource(
+                            androidx.media3.common.MediaItem.Builder()
+                                .setUri(nextChannel.url)
+                                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                                .build()
+                        )
                 else ->
                     androidx.media3.exoplayer.source.DefaultMediaSourceFactory(factory)
                         .createMediaSource(androidx.media3.common.MediaItem.fromUri(nextChannel.url))
@@ -536,7 +547,7 @@ class PlayerActivity : AppCompatActivity() {
                 exo.playWhenReady = false
                 exo.prepare()
             }
-            Log.d(TAG, "Pre-buffering: ${nextChannel.name}")
+            Log.d(TAG, "Pre-buffering: ${nextChannel.name} [${detectedType.label}]")
         } catch (e: Exception) {
             Log.w(TAG, "Pre-buffer failed: ${e.message}")
             preBufferPlayer = null
@@ -564,9 +575,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
+            val params = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
             enterPictureInPictureMode(params)
         } else {
             Toast.makeText(this, "PiP tidak didukung di Android ini", Toast.LENGTH_SHORT).show()
@@ -576,9 +585,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && player?.isPlaying == true) {
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .build()
+            val params = PictureInPictureParams.Builder().setAspectRatio(Rational(16, 9)).build()
             enterPictureInPictureMode(params)
         }
     }
@@ -596,7 +603,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun showSleepTimerDialog() {
         val options = arrayOf("15 menit", "30 menit", "45 menit", "60 menit", "90 menit", "Matikan Timer")
         val minutes = intArrayOf(15, 30, 45, 60, 90, 0)
-
         AlertDialog.Builder(this)
             .setTitle("⏱️  Sleep Timer")
             .setItems(options) { _, which ->
@@ -610,9 +616,6 @@ class PlayerActivity : AppCompatActivity() {
         cancelSleepTimer()
         sleepTimerMinutesLeft = minutes
         updateSleepTimerButton(minutes)
-
-        // BUG #7 FIX: Simpan ke SharedPreferences agar state tidak hilang
-        // saat Activity di-recreate (misalnya rotasi layar).
         viewModel.setSleepTimer(minutes)
 
         sleepTimer = object : CountDownTimer(minutes * 60_000L, 60_000L) {
@@ -626,7 +629,6 @@ class PlayerActivity : AppCompatActivity() {
                 finish()
             }
         }.start()
-
         Toast.makeText(this, "Sleep timer: $minutes menit", Toast.LENGTH_SHORT).show()
     }
 
@@ -636,7 +638,6 @@ class PlayerActivity : AppCompatActivity() {
         sleepTimerMinutesLeft = 0
         binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer)
         binding.tvSleepTimer.visibility = View.GONE
-        // BUG #6 FIX: Bersihkan SharedPreferences lewat ViewModel.
         viewModel.clearSleepTimer()
     }
 
@@ -720,8 +721,6 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // BUG #19 FIX: Hanya play ulang jika memang sedang play sebelum pause.
-        // Mencegah auto-play saat user keluar dari PiP setelah sengaja pause.
         if (wasPlayingBeforePause) player?.play()
         showTopBarTemporarily()
     }
@@ -729,7 +728,6 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) return
-        // BUG #19 FIX: Catat state sebelum pause.
         wasPlayingBeforePause = player?.isPlaying == true
         player?.pause()
     }
@@ -754,7 +752,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupGestureDetector() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
-
         gestureDetector = GestureDetector(this,
             object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent) = true
@@ -777,9 +774,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    // BUG #13 FIX: gestureOverlayHandler adalah field class — tidak ada
-    // object Handler baru yang dibuat per pemanggilan. removeCallbacks
-    // juga dipanggil sebelum postDelayed baru agar delay tidak menumpuk.
     private fun showGestureOverlay(text: String) {
         binding.tvGestureOverlay?.let { tv ->
             tv.text = text
