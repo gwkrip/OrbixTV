@@ -67,6 +67,10 @@ class PlayerActivity : AppCompatActivity() {
         // Timeout lebih lama untuk stream yang sudah terdeteksi jenisnya
         // (HLS pasti / DASH pasti) — beri waktu lebih karena kita yakin formatnya.
         private const val BUFFERING_TIMEOUT_KNOWN_MS = 20_000L
+
+        // [FIX #4] Timeout khusus DRM — Widevine license round-trip bisa >20 detik
+        // di jaringan lambat (download manifest → parse PSSH → request license → decrypt).
+        private const val BUFFERING_TIMEOUT_DRM_MS = 35_000L
     }
 
     private lateinit var binding: ActivityPlayerBinding
@@ -213,10 +217,11 @@ class PlayerActivity : AppCompatActivity() {
     // ── Start dengan tipe yang sudah DIKETAHUI PASTI ─────────────────────
 
     private fun startWithKnownType(type: M3uParser.StreamType) {
-        Log.d(TAG, "startWithKnownType: $type")
+        Log.d(TAG, "startWithKnownType: $type hasDRM=${licenseKey.isNotEmpty()}")
         val factory = buildDataSourceFactory()
         val source  = buildMediaSourceForKnownType(channelUrl, type, factory)
-        launchExoPlayer(source, isKnownType = true)
+        // [FIX #4] Gunakan timeout lebih panjang jika ada DRM (Widevine license round-trip)
+        launchExoPlayer(source, isKnownType = true, hasDrm = licenseKey.isNotEmpty())
     }
 
     // ── Start dengan fallback bertingkat ─────────────────────────────────
@@ -241,19 +246,37 @@ class PlayerActivity : AppCompatActivity() {
                     .createMediaSource(MediaItem.fromUri(uri))
             }
             FallbackStage.DASH -> {
-                DashMediaSource.Factory(factory).createMediaSource(
+                // [FIX #2] Terapkan DRM juga di fallback DASH — URL ambigu (tanpa .mpd)
+                // sangat umum di playlist IPTV. Sebelumnya DRM diabaikan di sini.
+                val drmSource = tryBuildDrmMediaSource(uri, factory)
+                drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
                 )
             }
         }
-        launchExoPlayer(source, isKnownType = false)
+        launchExoPlayer(source, isKnownType = false, hasDrm = licenseKey.isNotEmpty())
     }
 
     /**
      * Launch ExoPlayer dengan MediaSource yang diberikan.
-     * [isKnownType] menentukan berapa lama timeout buffering yang dipakai.
+     *
+     * [FIX #1] ExoPlayer selalu di-release dan dibuat ulang jika ada DRM (licenseKey tidak kosong).
+     * Root cause: DRM session yang gagal/timeout tidak bisa di-reset hanya dengan stop() +
+     * clearMediaItems(). Player baru diperlukan agar Widevine/PlayReady/ClearKey
+     * memulai license negotiation dari awal tanpa state korup dari sesi sebelumnya.
+     *
+     * [FIX #4] [hasDrm] menentukan timeout buffering: DRM membutuhkan waktu lebih
+     * panjang karena ada round-trip ke license server sebelum frame pertama bisa didekripsi.
      */
-    private fun launchExoPlayer(source: MediaSource, isKnownType: Boolean) {
+    private fun launchExoPlayer(source: MediaSource, isKnownType: Boolean, hasDrm: Boolean = false) {
+        // [FIX #1] Jika ada DRM, selalu buat player baru — DRM session tidak bisa di-reset.
+        // Jika tidak ada DRM, reuse player yang ada untuk efisiensi (menghindari black-flash).
+        if (hasDrm && player != null) {
+            Log.d(TAG, "DRM mode: releasing existing player to reset DRM session")
+            player!!.release()
+            player = null
+        }
+
         val exo = player ?: ExoPlayer.Builder(this).build().also { newExo ->
             player = newExo
             binding.playerView.player = newExo
@@ -265,8 +288,12 @@ class PlayerActivity : AppCompatActivity() {
         exo.playWhenReady = true
         exo.prepare()
 
-        // Mulai buffering timeout
-        val timeout = if (isKnownType) BUFFERING_TIMEOUT_KNOWN_MS else BUFFERING_TIMEOUT_MS
+        // [FIX #4] Timeout bertingkat: DRM > known-type > fallback
+        val timeout = when {
+            hasDrm      -> BUFFERING_TIMEOUT_DRM_MS
+            isKnownType -> BUFFERING_TIMEOUT_KNOWN_MS
+            else        -> BUFFERING_TIMEOUT_MS
+        }
         scheduleBufferingTimeout(timeout)
     }
 
@@ -765,19 +792,45 @@ class PlayerActivity : AppCompatActivity() {
         if (nextIndex == preBufferIndex) return
         releasePreBuffer()
         val next = allChannels[nextIndex]
+
+        // [FIX #3] Skip pre-buffer untuk channel DRM — license negotiation tidak bisa
+        // dilakukan di background tanpa surface aktif, dan player DRM harus di-release
+        // lalu dibuat ulang saat dimainkan (Fix #1). Pre-buffer channel DRM akan
+        // menyebabkan resource waste dan state yang tidak konsisten.
+        if (next.licenseKey.isNotEmpty()) {
+            Log.d(TAG, "Pre-buffer skipped: '${next.name}' requires DRM license")
+            return
+        }
+
         preBufferIndex = nextIndex
         try {
             val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory().apply {
                 setConnectTimeoutMs(10_000); setReadTimeoutMs(10_000)
                 if (next.userAgent.isNotEmpty()) setUserAgent(next.userAgent)
             }
+            val uri = Uri.parse(next.url)
+
+            // [FIX #3] Gunakan MediaSource yang sesuai dengan streamType channel berikutnya,
+            // bukan selalu HLS. Pre-buffer HLS untuk channel DASH akan selalu gagal diam-diam
+            // (consumePreBuffer() → null → setupPlayer() dari nol → jeda loading terlihat).
+            val source: androidx.media3.exoplayer.source.MediaSource = when (next.streamType) {
+                "DASH" -> androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory)
+                    .createMediaSource(
+                        MediaItem.Builder()
+                            .setUri(uri)
+                            .setMimeType(MimeTypes.APPLICATION_MPD)
+                            .build()
+                    )
+                else -> // HLS, PROGRESSIVE, RTMP → coba HLS sebagai default terbaik
+                    HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
+            }
+
             preBufferPlayer = ExoPlayer.Builder(this).build().also { exo ->
-                exo.setMediaSource(
-                    HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(next.url))
-                )
+                exo.setMediaSource(source)
                 exo.playWhenReady = false
                 exo.prepare()
             }
+            Log.d(TAG, "Pre-buffer started: '${next.name}' type=${next.streamType}")
         } catch (e: Exception) {
             Log.w(TAG, "Pre-buffer failed: ${e.message}")
             preBufferPlayer = null; preBufferIndex = -1
