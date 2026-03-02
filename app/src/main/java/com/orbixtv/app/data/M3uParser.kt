@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 object M3uParser {
@@ -15,7 +16,6 @@ object M3uParser {
     private val GROUP_REGEX = Regex("""group-title="([^"]*)"""")
     private val NAME_REGEX  = Regex("""tvg-name="([^"]*)"""")
 
-    // #8: Key sudah uppercase saat inisialisasi — tidak perlu .uppercase() ulang saat lookup
     private val groupFlagMap: Map<String, String> = mapOf(
         "INDONESIA" to "🇮🇩",
         "MALAYSIA"  to "🇲🇾",
@@ -35,18 +35,21 @@ object M3uParser {
         "TURKI"     to "🇹🇷"
     )
 
-    private val httpClient by lazy {
+    // ============================================================
+    // BUG #16 FIX: Ekspos sharedHttpClient agar ChannelRepository
+    // bisa memakainya untuk HEAD request (followRedirects=true).
+    // ============================================================
+    val sharedHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
+            .followSslRedirects(true)   // Tambahan: HTTPS → HTTP redirect
             .build()
     }
 
-    /** Parse dari assets — stream langsung, tidak buffer seluruh file ke String */
     suspend fun parseFromAssets(context: Context): List<ChannelGroup> = withContext(Dispatchers.IO) {
         try {
-            // #7: Baca langsung dari InputStream tanpa .readText() ke String perantara
             context.assets.open("playlist.m3u8").use { inputStream ->
                 parseFromReader(BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)))
             }
@@ -56,30 +59,33 @@ object M3uParser {
         }
     }
 
-    /** Parse dari URL — stream response body langsung tanpa .string() ke RAM */
+    // ============================================================
+    // BUG #11 FIX: response.use { } memastikan response body dan
+    // koneksi ditutup meski byteStream() throw exception di tengah.
+    // ============================================================
     suspend fun parseFromUrl(url: String): Result<List<ChannelGroup>> = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
-            }
-            // #7: byteStream() → parse on-the-fly, tidak perlu tampung seluruh file di memory
-            val groups = response.body?.byteStream()?.use { stream ->
-                parseFromReader(BufferedReader(InputStreamReader(stream, Charsets.UTF_8)))
-            } ?: return@withContext Result.failure(Exception("Response body kosong"))
+            sharedHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        Exception("HTTP ${response.code}: ${response.message}")
+                    )
+                }
+                val groups = response.body?.byteStream()?.use { stream ->
+                    parseFromReader(BufferedReader(InputStreamReader(stream, Charsets.UTF_8)))
+                } ?: return@withContext Result.failure(Exception("Response body kosong"))
 
-            Result.success(groups)
+                Result.success(groups)
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /** Core parser: baca per-baris dari Reader (shared antara assets & URL) */
     private fun parseFromReader(reader: BufferedReader): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
         var pendingExtInf: String? = null
-        // FIX: Kumpulkan #KODIPROP antara #EXTINF dan URL — sebelumnya diabaikan → DRM tidak terbaca → blackscreen
         val pendingKodiProps = mutableMapOf<String, String>()
 
         reader.use {
@@ -91,7 +97,6 @@ object M3uParser {
                         pendingExtInf = trimmed
                         pendingKodiProps.clear()
                     }
-                    // Tangkap semua #KODIPROP yang berisi konfigurasi DRM/stream
                     trimmed.startsWith("#KODIPROP:") && pendingExtInf != null -> {
                         val prop  = trimmed.removePrefix("#KODIPROP:")
                         val key   = prop.substringBefore("=").trim()
@@ -114,7 +119,6 @@ object M3uParser {
         return groupChannels(channels)
     }
 
-    /** Backward-compat: parse dari String (dipakai di settings preview / test) */
     fun parseContent(content: String): List<ChannelGroup> {
         val channels = mutableListOf<Channel>()
         var pendingExtInf: String? = null
@@ -144,28 +148,18 @@ object M3uParser {
 
     private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {
         return channels.groupBy { it.group }.map { (group, channelList) ->
-            // #8: uppercase() hanya sekali per grup; key di map sudah uppercase dari awal
             val groupUpper = group.uppercase()
             val flag = groupFlagMap.entries.firstOrNull { (key, _) ->
                 groupUpper.contains(key)
             }?.value ?: "📺"
             ChannelGroup(
-                name     = group.ifEmpty { "Lainnya" },
-                channels = channelList,
+                name      = group.ifEmpty { "Lainnya" },
+                channels  = channelList,
                 flagEmoji = flag
             )
         }.sortedBy { it.name }
     }
 
-    /**
-     * FIX: Tambah parameter kodiProps untuk membaca #KODIPROP DRM config.
-     * Priority: URL pipe params (license_type=, license_key=) > #KODIPROP lines.
-     *
-     * #KODIPROP yang didukung:
-     *   inputstream.adaptive.license_type  → licenseType
-     *   inputstream.adaptive.license_key   → licenseKey
-     *   inputstream.adaptive.manifest_type → hint tipe stream (mpd = DASH)
-     */
     private fun parseChannel(
         extinf: String,
         url: String,
@@ -186,43 +180,40 @@ object M3uParser {
             var licenseKey  = ""
             var referer     = ""
 
-            // --- 1. Baca dari pipe params di URL (format Kodi/IPTV lama) ---
+            // --- 1. Baca dari pipe params di URL ---
             params.split("&").forEach { param ->
                 when {
-                    param.startsWith("User-Agent=")   -> userAgent   = param.substringAfter("User-Agent=")
-                    param.startsWith("license_type=") -> licenseType = param.substringAfter("license_type=")
-                    param.startsWith("license_key=")  -> licenseKey  = param.substringAfter("license_key=")
-                    param.startsWith("referrer=")     -> referer     = param.substringAfter("referrer=").trim('"')
-                    param.startsWith("Referer=")      -> referer     = param.substringAfter("Referer=").trim('"')
+                    param.startsWith("User-Agent=", ignoreCase = true) ->
+                        userAgent   = param.substringAfter("=")
+                    param.startsWith("license_type=") ->
+                        licenseType = param.substringAfter("license_type=")
+                    param.startsWith("license_key=")  ->
+                        licenseKey  = param.substringAfter("license_key=")
+                    param.startsWith("referrer=", ignoreCase = true) ->
+                        referer     = param.substringAfter("=").trim('"')
+                    param.startsWith("Referer=") ->
+                        referer     = param.substringAfter("Referer=").trim('"')
                 }
             }
 
-            if (userAgent.isEmpty() && url.contains("User-Agent=")) {
-                val uaSection = url.substringAfter("User-Agent=")
-                userAgent = uaSection.substringBefore("|").substringBefore("&")
-                if (userAgent.contains("referrer=")) {
-                    referer   = userAgent.substringAfter("referrer=").trim().trim('"')
-                    userAgent = userAgent.substringBefore("referrer=").trim()
-                }
-            }
+            // ============================================================
+            // BUG #15 FIX: Hapus double-parsing User-Agent dari full URL.
+            // Parsing sudah dilakukan dari params di atas dengan split("&").
+            // Blok redundan sebelumnya mengambil substring dari URL mentah
+            // yang bisa salah jika ada query params tambahan.
+            // ============================================================
 
-            // --- 2. FIX: Baca dari #KODIPROP jika URL params tidak menyediakan DRM config ---
-            // #KODIPROP: inputstream.adaptive.license_type  (clearkey, org.w3.clearkey, com.widevine.alpha, dll)
+            // --- 2. Baca dari #KODIPROP ---
             if (licenseType.isEmpty()) {
                 val kodiLicType = kodiProps["inputstream.adaptive.license_type"] ?: ""
                 if (kodiLicType.isNotEmpty()) {
-                    // Normalisasi: "org.w3.clearkey" dan "clearkey" diperlakukan sama
                     licenseType = if (kodiLicType.equals("org.w3.clearkey", ignoreCase = true))
                         "clearkey" else kodiLicType
                 }
             }
-
-            // #KODIPROP: inputstream.adaptive.license_key  (format hex: "kid:key" atau "kid1:key1,kid2:key2")
             if (licenseKey.isEmpty()) {
                 licenseKey = kodiProps["inputstream.adaptive.license_key"] ?: ""
             }
-
-            // #KODIPROP: user-agent / stream_headers (format "Key=Value")
             if (userAgent.isEmpty()) {
                 val streamHeaders = kodiProps["inputstream.adaptive.stream_headers"] ?: ""
                 if (streamHeaders.contains("user-agent=", ignoreCase = true)) {
@@ -234,7 +225,6 @@ object M3uParser {
             }
 
             // --- 3. Deteksi tipe stream ---
-            // Beri hint dari #KODIPROP manifest_type jika URL tidak cukup jelas
             val kodiManifestType = kodiProps["inputstream.adaptive.manifest_type"]?.lowercase() ?: ""
             val streamType = when {
                 kodiManifestType == "mpd" || kodiManifestType == "dash" -> StreamType.DASH
@@ -242,7 +232,15 @@ object M3uParser {
                 else                                                    -> detectStreamType(streamUrl)
             }
 
-            val stableId = (name + streamUrl).hashCode().toString()
+            // ============================================================
+            // BUG #10 FIX: Ganti Int.hashCode() (32-bit, collision prone)
+            // dengan 8 byte SHA-256 → collision probability mendekati nol
+            // bahkan untuk ratusan ribu channel.
+            // ============================================================
+            val stableId = MessageDigest.getInstance("SHA-256")
+                .digest((name + streamUrl).toByteArray(Charsets.UTF_8))
+                .take(8)
+                .joinToString("") { "%02x".format(it) }
 
             Channel(
                 id          = stableId,
@@ -264,26 +262,27 @@ object M3uParser {
     fun detectStreamType(url: String): StreamType {
         val lower = url.lowercase()
         return when {
-            // DASH: pola URL yang umum dipakai provider IPTV
-            lower.contains(".mpd") ||
-            lower.contains("/dash/") ||
+            lower.contains(".mpd")         ||
+            lower.contains("/dash/")       ||
             lower.contains("manifest.mpd") ||
-            lower.contains("/mpd/") ||
-            lower.contains("format=mpd") ||
-            lower.contains("type=dash") ||
+            lower.contains("/mpd/")        ||
+            lower.contains("format=mpd")   ||
+            lower.contains("type=dash")    ||
             lower.contains("ism/manifest") ||
-            lower.contains(".ism(.mpd)") -> StreamType.DASH
+            lower.contains(".ism(.mpd)")   -> StreamType.DASH
 
-            // HLS
-            lower.contains(".m3u8") ||
-            lower.contains("/hls/") ||
-            lower.contains("chunklist") ||
-            lower.contains("format=m3u8") -> StreamType.HLS
+            lower.contains(".m3u8")        ||
+            lower.contains("/hls/")        ||
+            lower.contains("chunklist")    ||
+            lower.contains("format=m3u8")  -> StreamType.HLS
 
-            // RTMP
-            lower.startsWith("rtmp://") ||
-            lower.startsWith("rtmps://") -> StreamType.RTMP
+            lower.startsWith("rtmp://")    ||
+            lower.startsWith("rtmps://")   -> StreamType.RTMP
 
+            // ============================================================
+            // BUG #12 FIX: Label diubah menjadi "PROGRESSIVE" agar badge
+            // "● LIVE" tidak muncul untuk file VOD seperti .mp4 biasa.
+            // ============================================================
             else -> StreamType.PROGRESSIVE
         }
     }
@@ -292,6 +291,6 @@ object M3uParser {
         HLS("HLS"),
         DASH("DASH"),
         RTMP("RTMP"),
-        PROGRESSIVE("LIVE")
+        PROGRESSIVE("PROGRESSIVE")   // BUG #12 FIX: Bukan "LIVE"
     }
 }

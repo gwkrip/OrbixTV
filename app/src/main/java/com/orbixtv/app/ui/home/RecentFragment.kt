@@ -134,7 +134,6 @@ class RecentFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
-            putExtra(PlayerActivity.EXTRA_CHANNEL_COUNT, allChannels.size)
         })
     }
 

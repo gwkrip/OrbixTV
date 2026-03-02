@@ -10,10 +10,6 @@ import com.orbixtv.app.MainActivity
 import com.orbixtv.app.R
 import com.orbixtv.app.data.ChannelRepository
 
-/**
- * ⑩ Home screen widget — menampilkan channel terakhir ditonton
- * dengan tombol play langsung ke MainActivity.
- */
 class OrbixTvWidget : AppWidgetProvider() {
 
     override fun onUpdate(
@@ -32,21 +28,34 @@ class OrbixTvWidget : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             widgetId: Int
         ) {
-            val repo = ChannelRepository(context)
-            val recent = repo.getRecentChannels()
-            val lastChannel = recent.firstOrNull()
-
             val views = RemoteViews(context.packageName, R.layout.widget_orbixtv)
 
-            if (lastChannel != null) {
-                views.setTextViewText(R.id.widget_channel_name, lastChannel.name)
-                views.setTextViewText(R.id.widget_subtitle, lastChannel.group)
-            } else {
+            // BUG #20 FIX:
+            // 1. Gunakan singleton getInstance() agar data channel tersedia
+            //    (bukan instance baru yang channelById-nya kosong).
+            // 2. Bungkus dalam try-catch agar widget tidak crash jika
+            //    repository belum terinisialisasi atau data kosong.
+            try {
+                val repo = ChannelRepository.getInstance(context)
+                val recent = repo.getRecentChannels()
+                val lastChannel = recent.firstOrNull()
+
+                if (lastChannel != null) {
+                    views.setTextViewText(R.id.widget_channel_name, lastChannel.name)
+                    views.setTextViewText(R.id.widget_subtitle, lastChannel.group)
+                } else {
+                    views.setTextViewText(R.id.widget_channel_name, "OrbixTV")
+                    views.setTextViewText(
+                        R.id.widget_subtitle,
+                        context.getString(R.string.recent_empty_title)
+                    )
+                }
+            } catch (e: Exception) {
+                // Fallback aman — widget tetap tampil meski data gagal diambil
                 views.setTextViewText(R.id.widget_channel_name, "OrbixTV")
-                views.setTextViewText(R.id.widget_subtitle, context.getString(R.string.recent_empty_title))
+                views.setTextViewText(R.id.widget_subtitle, "")
             }
 
-            // Tap widget → buka MainActivity
             val intent = Intent(context, MainActivity::class.java)
             val pi = PendingIntent.getActivity(
                 context, widgetId, intent,

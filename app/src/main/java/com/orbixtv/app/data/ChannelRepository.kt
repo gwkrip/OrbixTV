@@ -6,6 +6,8 @@ import android.os.Environment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -14,7 +16,21 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class ChannelRepository(private val context: Context) {
+class ChannelRepository private constructor(private val context: Context) {
+
+    // ============================================================
+    // BUG #1 + #14 FIX: Singleton — PlayerActivity & PlaylistSettings-
+    // Activity kini berbagi instance yang sama dengan MainViewModel,
+    // sehingga channel list tidak pernah kosong di PlayerActivity.
+    // ============================================================
+    companion object {
+        @Volatile private var INSTANCE: ChannelRepository? = null
+
+        fun getInstance(context: Context): ChannelRepository =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: ChannelRepository(context.applicationContext).also { INSTANCE = it }
+            }
+    }
 
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("orbixtv_prefs", Context.MODE_PRIVATE)
@@ -27,8 +43,16 @@ class ChannelRepository(private val context: Context) {
     val favorites: StateFlow<List<Channel>> = _favorites
 
     private var cachedAllChannels: List<Channel> = emptyList()
-    private var cachedFavoriteIds: Set<String> = emptySet()
     private var channelById: Map<String, Channel> = emptyMap()
+
+    // ============================================================
+    // BUG #8 + #9 FIX: Mutex untuk thread-safety pada cachedFavorite-
+    // Ids, dan flag isFavoritesLoaded agar kondisi isEmpty tidak
+    // ambigu ketika user memang punya 0 favorit.
+    // ============================================================
+    private val favoritesMutex = Mutex()
+    private var cachedFavoriteIds: Set<String> = emptySet()
+    private var isFavoritesLoaded = false
 
     // --- Playlist URL ---
 
@@ -55,18 +79,17 @@ class ChannelRepository(private val context: Context) {
         }
     }
 
-    /** Cek apakah playlist URL masih bisa diakses — untuk WorkManager check */
+    // ============================================================
+    // BUG #16 FIX: Gunakan sharedHttpClient (followRedirects=true)
+    // agar redirect HTTPS→HTTP diikuti secara otomatis.
+    // ============================================================
     suspend fun isPlaylistUrlReachable(): Boolean = withContext(Dispatchers.IO) {
         val url = getPlaylistUrl().ifEmpty { return@withContext true }
         try {
-            val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-            conn.requestMethod = "HEAD"
-            conn.connectTimeout = 10_000
-            conn.readTimeout = 10_000
-            conn.connect()
-            val ok = conn.responseCode in 200..399
-            conn.disconnect()
-            ok
+            val request = okhttp3.Request.Builder().url(url).head().build()
+            M3uParser.sharedHttpClient.newCall(request).execute().use { response ->
+                response.code in 200..399
+            }
         } catch (e: Exception) {
             false
         }
@@ -76,7 +99,7 @@ class ChannelRepository(private val context: Context) {
         applyGroups(M3uParser.parseFromAssets(context))
     }
 
-    private fun applyGroups(groups: List<ChannelGroup>) {
+    private suspend fun applyGroups(groups: List<ChannelGroup>) {
         _groups.value = groups
         cachedAllChannels = groups.flatMap { it.channels }
         channelById = cachedAllChannels.associateBy { it.id }
@@ -115,11 +138,15 @@ class ChannelRepository(private val context: Context) {
 
     // --- Favorites ---
 
+    // BUG #8 FIX: favoritesMutex.withLock() menjamin tidak ada race
+    // condition antara toggleFavorite (IO) dan applyGroups.
     suspend fun toggleFavorite(channelId: String) = withContext(Dispatchers.IO) {
-        val favIds = cachedFavoriteIds.toMutableSet()
-        if (favIds.contains(channelId)) favIds.remove(channelId) else favIds.add(channelId)
-        prefs.edit().putStringSet("favorites", favIds).apply()
-        cachedFavoriteIds = favIds
+        favoritesMutex.withLock {
+            val favIds = cachedFavoriteIds.toMutableSet()
+            if (favIds.contains(channelId)) favIds.remove(channelId) else favIds.add(channelId)
+            prefs.edit().putStringSet("favorites", favIds).apply()
+            cachedFavoriteIds = favIds
+        }
         refreshFavoritesCache()
     }
 
@@ -128,8 +155,14 @@ class ChannelRepository(private val context: Context) {
     private fun loadFavoriteIds(): Set<String> =
         prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
-    private fun refreshFavoritesCache() {
-        if (cachedFavoriteIds.isEmpty()) cachedFavoriteIds = loadFavoriteIds()
+    // BUG #9 FIX: Flag isFavoritesLoaded terpisah — bukan isEmpty().
+    private suspend fun refreshFavoritesCache() {
+        favoritesMutex.withLock {
+            if (!isFavoritesLoaded) {
+                cachedFavoriteIds = loadFavoriteIds()
+                isFavoritesLoaded = true
+            }
+        }
         _favorites.value = cachedAllChannels
             .filter { cachedFavoriteIds.contains(it.id) }
             .map { it.copy(isFavorite = true) }
@@ -140,10 +173,6 @@ class ChannelRepository(private val context: Context) {
 
     // --- Export / Import Favorit ---
 
-    /**
-     * Export daftar favorit ke file JSON di folder Download publik.
-     * Return: path file yang dibuat, atau null jika gagal.
-     */
     suspend fun exportFavorites(): File? = withContext(Dispatchers.IO) {
         try {
             val favChannels = cachedAllChannels.filter { cachedFavoriteIds.contains(it.id) }
@@ -172,26 +201,24 @@ class ChannelRepository(private val context: Context) {
         }
     }
 
-    /**
-     * Import favorit dari file JSON.
-     * Return: jumlah channel yang berhasil diimport, atau -1 jika parsing gagal.
-     */
     suspend fun importFavorites(file: File): Int = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject(file.readText())
             val arr = json.getJSONArray("favorites")
-            val ids = cachedFavoriteIds.toMutableSet()
             var count = 0
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                val id = obj.getString("id")
-                if (channelById.containsKey(id) && !ids.contains(id)) {
-                    ids.add(id)
-                    count++
+            favoritesMutex.withLock {
+                val ids = cachedFavoriteIds.toMutableSet()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    val id = obj.getString("id")
+                    if (channelById.containsKey(id) && !ids.contains(id)) {
+                        ids.add(id)
+                        count++
+                    }
                 }
+                prefs.edit().putStringSet("favorites", ids).apply()
+                cachedFavoriteIds = ids
             }
-            prefs.edit().putStringSet("favorites", ids).apply()
-            cachedFavoriteIds = ids
             refreshFavoritesCache()
             count
         } catch (e: Exception) {
@@ -223,4 +250,7 @@ class ChannelRepository(private val context: Context) {
 
     fun saveSleepTimer(minutes: Int) = prefs.edit().putInt("sleep_timer_minutes", minutes).apply()
     fun getSleepTimer(): Int = prefs.getInt("sleep_timer_minutes", 0)
+
+    // BUG #6 FIX: Hapus nilai tersimpan agar timer tidak tersisa di prefs.
+    fun clearSleepTimer() = prefs.edit().remove("sleep_timer_minutes").apply()
 }

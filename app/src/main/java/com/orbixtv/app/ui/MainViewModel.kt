@@ -10,15 +10,15 @@ import com.orbixtv.app.data.SortOrder
 import com.orbixtv.app.data.StreamFilter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import java.io.File
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = ChannelRepository(application)
+    // BUG #1 + #14 FIX: Gunakan singleton repository agar semua
+    // Activity (PlayerActivity, PlaylistSettingsActivity) berbagi
+    // state channel yang sama dengan MainActivity.
+    private val repository = ChannelRepository.getInstance(application)
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -32,7 +32,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val groups: StateFlow<List<ChannelGroup>> = repository.groups
     val favorites: StateFlow<List<Channel>> = repository.favorites
 
-    // ⑦ Sort & Filter state
     private val _sortOrder = MutableStateFlow(SortOrder.DEFAULT)
     val sortOrder: StateFlow<SortOrder> = _sortOrder
 
@@ -80,17 +79,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun isFavorite(channelId: String): Boolean = repository.isFavorite(channelId)
 
-    // ⑪ Export / Import favorit
     fun exportFavorites(onResult: (File?) -> Unit) {
-        viewModelScope.launch {
-            onResult(repository.exportFavorites())
-        }
+        viewModelScope.launch { onResult(repository.exportFavorites()) }
     }
 
     fun importFavorites(file: File, onResult: (Int) -> Unit) {
-        viewModelScope.launch {
-            onResult(repository.importFavorites(file))
-        }
+        viewModelScope.launch { onResult(repository.importFavorites(file)) }
     }
 
     // --- Recent ---
@@ -101,5 +95,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Sleep Timer ---
     fun setSleepTimer(minutes: Int) = repository.saveSleepTimer(minutes)
-    fun clearSleepTimer() {}
+
+    // BUG #6 FIX: Implementasi nyata — hapus dari SharedPreferences.
+    fun clearSleepTimer() = repository.clearSleepTimer()
 }
