@@ -74,6 +74,7 @@ class ChannelAdapter(
             binding.tvChannelName.text = channel.name
             binding.tvGroupName.text   = channel.group
             binding.tvStreamType.text  = channel.streamType
+            applyStreamTypeBadge(channel.streamType)
 
             if (channel.logoUrl.isNotEmpty()) {
                 Glide.with(binding.ivLogo)
@@ -108,6 +109,19 @@ class ChannelAdapter(
         fun cancelPing() {
             pingJob?.cancel()
             pingJob = null
+        }
+
+        private fun applyStreamTypeBadge(streamType: String) {
+            val ctx = binding.tvStreamType.context
+            val (bgRes, textColor) = when (streamType.uppercase()) {
+                "HLS"         -> R.drawable.bg_badge_hls         to 0xFF4D9EFF.toInt()
+                "DASH"        -> R.drawable.bg_badge_dash        to 0xFFAA77FF.toInt()
+                "RTMP"        -> R.drawable.bg_badge_rtmp        to 0xFFFF6633.toInt()
+                "PROGRESSIVE" -> R.drawable.bg_badge_progressive to 0xFF44CC77.toInt()
+                else          -> R.drawable.bg_badge_default     to 0xFF889AAA.toInt()
+            }
+            binding.tvStreamType.setBackgroundResource(bgRes)
+            binding.tvStreamType.setTextColor(textColor)
         }
 
         private fun updateStatusDot(status: Int) {
