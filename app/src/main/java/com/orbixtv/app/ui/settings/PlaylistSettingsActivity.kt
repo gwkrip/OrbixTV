@@ -31,13 +31,10 @@ class PlaylistSettingsActivity : AppCompatActivity() {
     private fun setupUI() {
         binding.btnBack.setOnClickListener { finish() }
 
-        val savedUrl = viewModel.getPlaylistUrl()
-        if (savedUrl.isNotEmpty()) {
-            binding.etPlaylistUrl.setText(savedUrl)
-            binding.tvCurrentSource.text = "Sumber aktif: URL Eksternal"
-        } else {
-            binding.tvCurrentSource.text = "Sumber aktif: Playlist bawaan (assets)"
-        }
+        refreshSourceLabel()
+
+        // Tampilkan URL yang sedang aktif di field input
+        binding.etPlaylistUrl.setText(viewModel.getPlaylistUrl())
 
         binding.btnApply.setOnClickListener {
             val url = binding.etPlaylistUrl.text.toString().trim()
@@ -50,22 +47,31 @@ class PlaylistSettingsActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             viewModel.setPlaylistUrl(url)
-            binding.tvCurrentSource.text = "Sumber aktif: URL Eksternal"
+            refreshSourceLabel()
             Toast.makeText(this, "Memuat playlist dari URL...", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnReset.setOnClickListener {
+            val defaultUrl = viewModel.getDefaultPlaylistUrl()
             AlertDialog.Builder(this)
-                .setTitle("Reset ke Playlist Bawaan")
-                .setMessage("Playlist kustom akan dihapus dan aplikasi akan kembali menggunakan playlist bawaan.")
+                .setTitle("Reset ke URL Default")
+                .setMessage("Playlist kustom akan dihapus dan aplikasi akan menggunakan URL default:\n\n$defaultUrl")
                 .setPositiveButton("Reset") { _, _ ->
                     viewModel.resetToDefaultPlaylist()
-                    binding.etPlaylistUrl.setText("")
-                    binding.tvCurrentSource.text = "Sumber aktif: Playlist bawaan (assets)"
-                    Toast.makeText(this, "Kembali ke playlist bawaan", Toast.LENGTH_SHORT).show()
+                    binding.etPlaylistUrl.setText(defaultUrl)
+                    refreshSourceLabel()
+                    Toast.makeText(this, "Kembali ke URL default", Toast.LENGTH_SHORT).show()
                 }
                 .setNegativeButton("Batal", null)
                 .show()
+        }
+    }
+
+    private fun refreshSourceLabel() {
+        binding.tvCurrentSource.text = if (viewModel.isUsingDefaultUrl()) {
+            "Sumber aktif: URL Default"
+        } else {
+            "Sumber aktif: URL Kustom"
         }
     }
 

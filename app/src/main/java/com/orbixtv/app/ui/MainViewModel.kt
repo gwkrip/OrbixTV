@@ -49,6 +49,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getPlaylistUrl(): String = repository.getPlaylistUrl()
+    fun isUsingDefaultUrl(): Boolean = repository.isUsingDefaultUrl()
+    fun getDefaultPlaylistUrl(): String = com.orbixtv.app.data.ChannelRepository.DEFAULT_PLAYLIST_URL
 
     fun setPlaylistUrl(url: String) {
         repository.savePlaylistUrl(url)
@@ -61,7 +63,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetToDefaultPlaylist() {
-        repository.clearPlaylistUrl()
+        repository.resetToDefaultUrl()
         viewModelScope.launch {
             _isLoading.value = true
             _loadError.value = null

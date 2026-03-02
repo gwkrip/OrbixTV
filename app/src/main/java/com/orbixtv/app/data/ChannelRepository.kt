@@ -21,6 +21,12 @@ class ChannelRepository private constructor(private val context: Context) {
     companion object {
         @Volatile private var INSTANCE: ChannelRepository? = null
 
+        // ============================================================
+        // Ganti URL di bawah ini dengan URL playlist default Anda
+        // ============================================================
+        const val DEFAULT_PLAYLIST_URL = "https://iptv-org.github.io/iptv/index.m3u"
+        // ============================================================
+
         fun getInstance(context: Context): ChannelRepository =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: ChannelRepository(context.applicationContext).also { INSTANCE = it }
@@ -46,35 +52,43 @@ class ChannelRepository private constructor(private val context: Context) {
     private var cachedFavoriteIds: Set<String> = emptySet()
     private var isFavoritesLoaded = false
 
-    fun getPlaylistUrl(): String = prefs.getString("playlist_url", "") ?: ""
+    /** Mengembalikan URL aktif — URL kustom user jika ada, atau DEFAULT_PLAYLIST_URL */
+    fun getPlaylistUrl(): String {
+        val saved = prefs.getString("playlist_url", null)
+        return if (!saved.isNullOrBlank()) saved else DEFAULT_PLAYLIST_URL
+    }
+
+    /** true jika user belum menyimpan URL kustom (menggunakan URL default) */
+    fun isUsingDefaultUrl(): Boolean = prefs.getString("playlist_url", null).isNullOrBlank()
+
     fun savePlaylistUrl(url: String) {
         isPlaylistLoaded = false
         prefs.edit().putString("playlist_url", url.trim()).apply()
     }
-    fun clearPlaylistUrl() {
+
+    /** Reset ke URL default (hapus URL kustom user) */
+    fun resetToDefaultUrl() {
         isPlaylistLoaded = false
         prefs.edit().remove("playlist_url").apply()
     }
 
+    @Deprecated("Gunakan resetToDefaultUrl()", ReplaceWith("resetToDefaultUrl()"))
+    fun clearPlaylistUrl() = resetToDefaultUrl()
+
     suspend fun loadPlaylist(): String? {
         if (isPlaylistLoaded && cachedAllChannels.isNotEmpty()) return null
 
-        val url = getPlaylistUrl()
-        return if (url.isNotEmpty()) {
-            val result = M3uParser.parseFromUrl(url)
-            if (result.isSuccess) {
-                applyGroups(result.getOrNull() ?: emptyList())
-                isPlaylistLoaded = true
-                null
-            } else {
-                loadFromAssets()
-                isPlaylistLoaded = true
-                "Gagal memuat dari URL: ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
-            }
-        } else {
-            loadFromAssets()
+        val url = getPlaylistUrl() // selalu ada URL (default atau kustom)
+        val result = M3uParser.parseFromUrl(url)
+        return if (result.isSuccess) {
+            applyGroups(result.getOrNull() ?: emptyList())
             isPlaylistLoaded = true
             null
+        } else {
+            // Fallback ke assets hanya jika URL default pun gagal
+            loadFromAssets()
+            isPlaylistLoaded = true
+            "Gagal memuat dari URL ($url): ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
         }
     }
 
