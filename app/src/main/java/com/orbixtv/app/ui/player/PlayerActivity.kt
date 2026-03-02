@@ -39,6 +39,7 @@ import com.bumptech.glide.Glide
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
+import com.orbixtv.app.data.M3uParser.StreamType
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
 

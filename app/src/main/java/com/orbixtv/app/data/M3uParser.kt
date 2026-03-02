@@ -313,10 +313,6 @@ object M3uParser {
         }
     }
 
-        } catch (e: Exception) {
-            null
-        }
-    }
 
     enum class StreamType(val label: String) {
         HLS("HLS"),
