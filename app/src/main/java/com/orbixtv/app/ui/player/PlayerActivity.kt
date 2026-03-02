@@ -61,22 +61,11 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
         private const val TAG = "PlayerActivity"
 
-        // Berapa lama (ms) ExoPlayer boleh stuck di STATE_BUFFERING sebelum
-        // kita paksa pindah ke format berikutnya.
-        // 12 detik cukup untuk jaringan lambat, tidak terlalu lama untuk UX.
-        private const val BUFFERING_TIMEOUT_MS = 12_000L
+        private const val BUFFERING_TIMEOUT_MS          = 12_000L
+        private const val BUFFERING_TIMEOUT_KNOWN_MS    = 20_000L
+        private const val BUFFERING_TIMEOUT_DRM_MS      = 35_000L
+        private const val BUFFERING_TIMEOUT_MIDSTREAM_MS = 15_000L // timeout saat rebuffer mid-stream
 
-        // Timeout lebih lama untuk stream yang sudah terdeteksi jenisnya
-        // (HLS pasti / DASH pasti) — beri waktu lebih karena kita yakin formatnya.
-        private const val BUFFERING_TIMEOUT_KNOWN_MS = 20_000L
-
-        // [FIX #4] Timeout khusus DRM — Widevine license round-trip bisa >20 detik
-        // di jaringan lambat (download manifest → parse PSSH → request license → decrypt).
-        private const val BUFFERING_TIMEOUT_DRM_MS = 35_000L
-
-        // [FIX OkHttp] Shared OkHttpClient untuk player — konsisten dengan M3uParser.
-        // DefaultHttpDataSource (HttpURLConnection) tidak support HTTP/2 dan sering
-        // gagal di CDN seperti CloudFront/Akamai yang aggressive redirect + HTTP/2.
         val sharedOkHttpClient: OkHttpClient by lazy {
             OkHttpClient.Builder()
                 .connectTimeout(15, TimeUnit.SECONDS)
@@ -111,39 +100,26 @@ class PlayerActivity : AppCompatActivity() {
     private var allChannels: List<Channel> = emptyList()
     private var currentChannelIndex = -1
 
-    // ── Sistem fallback bertingkat ──────────────────────────────────────────
-    //
-    // MASALAH ROOT CAUSE:
-    // Channel vnd (Xtream Codes format: host:8080/live/user/pass/id.ts, dll)
-    // tidak memiliki ekstensi URL dan server sering mengembalikan Content-Type
-    // yang menyesatkan. ExoPlayer memilih format yang salah → masuk
-    // STATE_BUFFERING selamanya karena data masuk tapi tidak bisa di-parse.
-    // onPlayerError TIDAK dipanggil dalam kondisi ini → fallback tidak berjalan.
-    //
-    // SOLUSI: Buffering timeout yang memaksa pindah stage jika ExoPlayer
-    // stuck di STATE_BUFFERING melebihi BUFFERING_TIMEOUT_MS.
-    //
-    // Urutan fallback untuk stream PROGRESSIVE (ambigu):
-    //   Stage 0 → HLS tanpa MIME eksplisit (ExoPlayer sniff dari byte stream)
-    //   Stage 1 → Default / auto-detect penuh
-    //   Stage 2 → DASH
-    // ────────────────────────────────────────────────────────────────────────
     private enum class FallbackStage { HLS, DEFAULT, DASH }
     private var fallbackStage   = FallbackStage.HLS
     private var isUsingFallback = false
 
-    // Handler khusus untuk buffering timeout
-    private val bufferingTimeoutHandler = Handler(Looper.getMainLooper())
+    private val bufferingTimeoutHandler  = Handler(Looper.getMainLooper())
     private val bufferingTimeoutRunnable = Runnable { onBufferingTimeout() }
+    private var isBufferingTimeoutPending = false
 
     private var retryCount = 0
     private val MAX_AUTO_RETRY = 2
     private val retryHandler = Handler(Looper.getMainLooper())
 
+    // Flag: apakah stream sudah pernah masuk STATE_READY di sesi ini
+    // Digunakan untuk membedakan initial buffering vs mid-stream rebuffering
+    private var hasBeenReady = false
+
     private var preBufferPlayer: ExoPlayer? = null
     private var preBufferIndex  = -1
 
-    private var isOrientationLocked  = false
+    private var isOrientationLocked   = false
     private var wasPlayingBeforePause = true
 
     private val gestureOverlayHandler = Handler(Looper.getMainLooper())
@@ -185,27 +161,15 @@ class PlayerActivity : AppCompatActivity() {
         setupGestureDetector()
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // SETUP PLAYER — Entry point utama
-    // ════════════════════════════════════════════════════════════════════════
-
     private fun setupPlayer() {
         if (channelUrl.isEmpty()) { showError("URL stream tidak valid"); return }
 
-        // Bersihkan semua handler yang mungkin masih berjalan dari sesi sebelumnya
         retryHandler.removeCallbacksAndMessages(null)
         cancelBufferingTimeout()
-        // [FIX BUG-A] JANGAN reset retryCount di sini!
-        // Jika direset di sini, onPlayerError/onBufferingTimeout selalu melihat
-        // retryCount=0 → kondisi else (showError) tidak pernah tercapai
-        // → infinite retry loop → loading selamanya.
-        // retryCount HANYA boleh direset di:
-        //   1. STATE_READY (stream berhasil diputar)
-        //   2. navigateChannel (pindah channel baru)
-        //   3. Tombol "Coba Lagi" di error layout (user-initiated)
 
         showLoading(true)
         showError(null)
+        hasBeenReady = false  // reset flag saat setup baru dimulai
 
         val detectedType = resolveStreamType()
         Log.d(TAG, "resolveStreamType=$detectedType hint='$mimeTypeHint' url=$channelUrl")
@@ -214,19 +178,12 @@ class PlayerActivity : AppCompatActivity() {
         fallbackStage   = FallbackStage.HLS
 
         if (isUsingFallback) {
-            // Mulai dari HLS (format paling umum di IPTV)
             startWithFallbackStage(FallbackStage.HLS)
         } else {
             startWithKnownType(detectedType)
         }
     }
 
-    /**
-     * Tentukan tipe stream dari metadata saja (tanpa I/O / HEAD request).
-     * HEAD request tidak reliable untuk server IPTV:
-     * – Banyak server reply Content-Type: text/html meski isi-nya HLS
-     * – Banyak server tidak support HEAD → 405 Method Not Allowed
-     */
     private fun resolveStreamType(): M3uParser.StreamType {
         if (mimeTypeHint.isNotEmpty()) {
             val t = M3uParser.mimeStringToStreamType(mimeTypeHint)
@@ -235,17 +192,12 @@ class PlayerActivity : AppCompatActivity() {
         return M3uParser.detectStreamType(channelUrl)
     }
 
-    // ── Start dengan tipe yang sudah DIKETAHUI PASTI ─────────────────────
-
     private fun startWithKnownType(type: M3uParser.StreamType) {
         Log.d(TAG, "startWithKnownType: $type hasDRM=${licenseKey.isNotEmpty()}")
         val factory = buildDataSourceFactory()
         val source  = buildMediaSourceForKnownType(channelUrl, type, factory)
-        // [FIX #4] Gunakan timeout lebih panjang jika ada DRM (Widevine license round-trip)
         launchExoPlayer(source, isKnownType = true, hasDrm = licenseKey.isNotEmpty())
     }
-
-    // ── Start dengan fallback bertingkat ─────────────────────────────────
 
     private fun startWithFallbackStage(stage: FallbackStage) {
         fallbackStage = stage
@@ -255,20 +207,13 @@ class PlayerActivity : AppCompatActivity() {
         val uri     = Uri.parse(channelUrl)
 
         val source: MediaSource = when (stage) {
-            FallbackStage.HLS -> {
-                // KUNCI: tanpa setMimeType() → ExoPlayer sniff dari byte pertama isi.
-                // Ini yang handle vnd.apple.mpegurl, x-mpegurl, .ts stream, dll.
+            FallbackStage.HLS ->
                 HlsMediaSource.Factory(factory)
                     .createMediaSource(MediaItem.fromUri(uri))
-            }
-            FallbackStage.DEFAULT -> {
-                // ExoPlayer full auto-detect dari content bytes
+            FallbackStage.DEFAULT ->
                 DefaultMediaSourceFactory(factory)
                     .createMediaSource(MediaItem.fromUri(uri))
-            }
             FallbackStage.DASH -> {
-                // [FIX #2] Terapkan DRM juga di fallback DASH — URL ambigu (tanpa .mpd)
-                // sangat umum di playlist IPTV. Sebelumnya DRM diabaikan di sini.
                 val drmSource = tryBuildDrmMediaSource(uri, factory)
                 drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
@@ -278,20 +223,7 @@ class PlayerActivity : AppCompatActivity() {
         launchExoPlayer(source, isKnownType = false, hasDrm = licenseKey.isNotEmpty())
     }
 
-    /**
-     * Launch ExoPlayer dengan MediaSource yang diberikan.
-     *
-     * [FIX #1] ExoPlayer selalu di-release dan dibuat ulang jika ada DRM (licenseKey tidak kosong).
-     * Root cause: DRM session yang gagal/timeout tidak bisa di-reset hanya dengan stop() +
-     * clearMediaItems(). Player baru diperlukan agar Widevine/PlayReady/ClearKey
-     * memulai license negotiation dari awal tanpa state korup dari sesi sebelumnya.
-     *
-     * [FIX #4] [hasDrm] menentukan timeout buffering: DRM membutuhkan waktu lebih
-     * panjang karena ada round-trip ke license server sebelum frame pertama bisa didekripsi.
-     */
     private fun launchExoPlayer(source: MediaSource, isKnownType: Boolean, hasDrm: Boolean = false) {
-        // [FIX #1] Jika ada DRM, selalu buat player baru — DRM session tidak bisa di-reset.
-        // Jika tidak ada DRM, reuse player yang ada untuk efisiensi (menghindari black-flash).
         if (hasDrm && player != null) {
             Log.d(TAG, "DRM mode: releasing existing player to reset DRM session")
             player!!.release()
@@ -309,7 +241,6 @@ class PlayerActivity : AppCompatActivity() {
         exo.playWhenReady = true
         exo.prepare()
 
-        // [FIX #4] Timeout bertingkat: DRM > known-type > fallback
         val timeout = when {
             hasDrm      -> BUFFERING_TIMEOUT_DRM_MS
             isKnownType -> BUFFERING_TIMEOUT_KNOWN_MS
@@ -318,39 +249,46 @@ class PlayerActivity : AppCompatActivity() {
         scheduleBufferingTimeout(timeout)
     }
 
-    // ── Buffering Timeout ─────────────────────────────────────────────────
-
     private fun scheduleBufferingTimeout(delayMs: Long) {
         cancelBufferingTimeout()
+        isBufferingTimeoutPending = true
         bufferingTimeoutHandler.postDelayed(bufferingTimeoutRunnable, delayMs)
         Log.d(TAG, "Buffering timeout scheduled: ${delayMs}ms [fallback=$isUsingFallback stage=$fallbackStage]")
     }
 
     private fun cancelBufferingTimeout() {
         bufferingTimeoutHandler.removeCallbacks(bufferingTimeoutRunnable)
+        isBufferingTimeoutPending = false
     }
 
-    /**
-     * Dipanggil ketika ExoPlayer stuck di STATE_BUFFERING melebihi timeout.
-     * Ini adalah satu-satunya cara menangani kasus loading tanpa henti karena
-     * onPlayerError tidak dipanggil saat ExoPlayer berhasil connect tapi
-     * tidak bisa parse format stream.
-     */
     private fun onBufferingTimeout() {
+        isBufferingTimeoutPending = false
         val state = player?.playbackState
-        // Hanya bertindak jika memang masih buffering
         if (state != Player.STATE_BUFFERING && state != Player.STATE_IDLE) {
             Log.d(TAG, "Buffering timeout fired but state=$state, ignoring")
             return
         }
 
-        Log.w(TAG, "Buffering timeout! fallback=$isUsingFallback stage=$fallbackStage")
+        Log.w(TAG, "Buffering timeout! fallback=$isUsingFallback stage=$fallbackStage hasBeenReady=$hasBeenReady")
+
+        // FIX: Jika timeout terjadi saat mid-stream rebuffering (hasBeenReady=true),
+        // jangan jalankan fallback — langsung retry setupPlayer() dengan batas retry.
+        if (hasBeenReady) {
+            if (retryCount < MAX_AUTO_RETRY) {
+                retryCount++
+                Log.d(TAG, "Mid-stream rebuffering timeout, retry $retryCount/$MAX_AUTO_RETRY")
+                retryHandler.postDelayed({ if (!isFinishing) setupPlayer() }, 1_000L)
+            } else {
+                retryCount = 0
+                showLoading(false)
+                showError("Stream terputus. Periksa koneksi atau coba lagi.")
+            }
+            return
+        }
 
         if (isUsingFallback) {
             advanceFallbackStage()
         } else {
-            // Stream dengan tipe diketahui tapi timeout → coba lagi sekali,
-            // lalu tampilkan error
             if (retryCount < MAX_AUTO_RETRY) {
                 retryCount++
                 Log.d(TAG, "Known-type buffering timeout, retry $retryCount/$MAX_AUTO_RETRY")
@@ -363,7 +301,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /** Pindah ke stage fallback berikutnya, atau tampilkan error jika sudah habis. */
     private fun advanceFallbackStage() {
         val nextStage: FallbackStage? = when (fallbackStage) {
             FallbackStage.HLS     -> FallbackStage.DEFAULT
@@ -377,24 +314,24 @@ class PlayerActivity : AppCompatActivity() {
                 if (!isFinishing) startWithFallbackStage(nextStage)
             }, 300L)
         } else {
-            // Semua format dicoba, semua timeout
             isUsingFallback = false
             showLoading(false)
             showError("Tidak dapat memutar channel ini. Format stream tidak dikenali atau server tidak merespons.")
         }
     }
 
-    // ── Listener ExoPlayer ────────────────────────────────────────────────
-
     private fun attachPlayerListener(exo: ExoPlayer) {
         exo.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
                 when (state) {
                     Player.STATE_READY -> {
-                        // Berhasil! Batalkan semua timeout & reset state
                         cancelBufferingTimeout()
                         retryHandler.removeCallbacksAndMessages(null)
-                        isUsingFallback = false
+                        // FIX Bug 2 & 3: Jangan reset isUsingFallback di sini.
+                        // isUsingFallback hanya direset di setupPlayer() supaya fallback chain
+                        // tidak putus jika stream sempat READY lalu rebuffering.
+                        // retryCount direset cukup sekali saat stream benar-benar siap.
+                        hasBeenReady = true
                         retryCount = 0
                         showLoading(false)
                         showError(null)
@@ -404,8 +341,14 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     Player.STATE_BUFFERING -> {
                         showLoading(true)
-                        // Timeout sudah dijadwalkan di launchExoPlayer(),
-                        // tidak perlu reschedule di sini.
+                        // FIX Bug 1: jadwalkan timeout untuk mid-stream rebuffering.
+                        // Jika stream sudah pernah READY lalu balik BUFFERING,
+                        // timeout harus tetap berjalan agar tidak loading selamanya.
+                        // Jika belum pernah READY, timeout sudah dijadwalkan di launchExoPlayer().
+                        if (hasBeenReady && !isBufferingTimeoutPending) {
+                            scheduleBufferingTimeout(BUFFERING_TIMEOUT_MIDSTREAM_MS)
+                            Log.d(TAG, "STATE_BUFFERING mid-stream — timeout ${BUFFERING_TIMEOUT_MIDSTREAM_MS}ms scheduled")
+                        }
                     }
                     Player.STATE_ENDED -> {
                         cancelBufferingTimeout()
@@ -421,12 +364,10 @@ class PlayerActivity : AppCompatActivity() {
                 showLoading(false)
 
                 if (isUsingFallback) {
-                    // Error eksplisit → langsung lanjut ke stage berikutnya tanpa delay
                     advanceFallbackStage()
                     return
                 }
 
-                // Stream tipe diketahui → auto-retry biasa
                 if (retryCount < MAX_AUTO_RETRY) {
                     retryCount++
                     retryHandler.postDelayed({ if (!isFinishing) setupPlayer() }, 2_000L * retryCount)
@@ -438,17 +379,6 @@ class PlayerActivity : AppCompatActivity() {
         })
     }
 
-    // ── Build helpers ─────────────────────────────────────────────────────
-
-    // [FIX OkHttp] Ganti DefaultHttpDataSource → OkHttpDataSource
-    // Root cause lama: DefaultHttpDataSource (HttpURLConnection) tidak support HTTP/2.
-    // CloudFront dan Akamai CDN memakai HTTP/2 aggressively + redirect chain.
-    // Dengan HttpURLConnection:
-    //   1. HTTP/2 multiplexing tidak aktif → setiap request buka koneksi baru
-    //   2. Redirect kadang tidak diikuti correctly untuk HTTPS→HTTPS
-    //   3. Segment DASH pertama kadang timeout karena koneksi TCP baru
-    // Dengan OkHttp: semua masalah di atas teratasi. OkHttp sudah ada di
-    // dependencies (media3-datasource-okhttp) tapi sebelumnya tidak dipakai!
     private fun buildDataSourceFactory(): OkHttpDataSource.Factory {
         val factory = OkHttpDataSource.Factory(sharedOkHttpClient)
         factory.setUserAgent(
@@ -479,30 +409,89 @@ class PlayerActivity : AppCompatActivity() {
         return when (type) {
             M3uParser.StreamType.DASH -> {
                 val drmSource = tryBuildDrmMediaSource(uri, factory)
+                if (drmSource == null && licenseKey.isNotEmpty()) {
+                    Log.w(TAG, "DASH: licenseKey ada tapi DRM source gagal dibangun — stream mungkin tidak bisa diputar")
+                }
                 drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
                     MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
                 )
             }
-            M3uParser.StreamType.HLS ->
-                HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
+            M3uParser.StreamType.HLS -> {
+                // FIX Bug 3: Terapkan DRM ke HLS jika ada licenseKey.
+                // Sebelumnya HLS selalu dibuat tanpa DRM meskipun licenseKey ada.
+                if (licenseKey.isNotEmpty()) {
+                    val drmConfig = buildDrmConfiguration()
+                    if (drmConfig != null) {
+                        Log.d(TAG, "HLS+DRM: membangun HlsMediaSource dengan DRM")
+                        HlsMediaSource.Factory(factory).createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setDrmConfiguration(drmConfig)
+                                .build()
+                        )
+                    } else {
+                        Log.w(TAG, "HLS: licenseKey ada tapi DRM config gagal — melanjutkan tanpa DRM")
+                        HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
+                    }
+                } else {
+                    HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
+                }
+            }
             else ->
                 DefaultMediaSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri))
         }
     }
 
-    // ── DRM routing ───────────────────────────────────────────────────────
-    //
-    // Bug sebelumnya:
-    //  1. Semua licenseType diperlakukan sebagai ClearKey → Widevine/PlayReady gagal
-    //  2. parseClearKeys() menolak UUID dengan dash (format paling umum di IPTV)
-    //  3. Key dalam format base64url juga ditolak
-    //
-    // Routing yang benar:
-    //  • clearkey / org.w3.clearkey  → C.CLEARKEY_UUID  + inline JSON
-    //  • widevine / edef8ba9-...     → C.WIDEVINE_UUID  + license server URL
-    //  • playready / 9a04f079-...    → C.PLAYREADY_UUID + license server URL
-    //  • kosong / tidak dikenal      → tidak ada DRM (return null)
-    // ─────────────────────────────────────────────────────────────────────
+    /**
+     * Membangun hanya DrmConfiguration (tanpa MediaSource) untuk dipakai di HLS maupun DASH.
+     * Logika deteksi sama dengan tryBuildDrmMediaSource.
+     */
+    private fun buildDrmConfiguration(): MediaItem.DrmConfiguration? {
+        if (licenseKey.isEmpty()) return null
+        val lt = licenseType.lowercase().trim()
+        val effectiveLt: String = if (lt.isEmpty()) {
+            val keyTrimmed = licenseKey.trim()
+            if (keyTrimmed.startsWith("http://") || keyTrimmed.startsWith("https://")) "widevine"
+            else "clearkey"
+        } else lt
+
+        return try {
+            when {
+                effectiveLt.contains("clearkey") || effectiveLt == "org.w3.clearkey" -> {
+                    val keys = parseClearKeys(licenseKey)
+                    if (keys.isEmpty()) return null
+                    val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
+                    MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
+                        .setLicenseUri(inlineJson)
+                        .build()
+                }
+                effectiveLt.contains("widevine") ||
+                effectiveLt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
+                    val parts = licenseKey.split("|")
+                    val licenseUrl = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                        .setLicenseUri(licenseUrl)
+                        .setLicenseRequestHeaders(requestHeaders)
+                        .build()
+                }
+                effectiveLt.contains("playready") ||
+                effectiveLt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
+                    val parts = licenseKey.split("|")
+                    val licenseUrl = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
+                        .setLicenseUri(licenseUrl)
+                        .setLicenseRequestHeaders(requestHeaders)
+                        .build()
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "buildDrmConfiguration gagal: ${e.message}", e)
+            null
+        }
+    }
 
     private fun tryBuildDrmMediaSource(
         uri: Uri,
@@ -512,17 +501,31 @@ class PlayerActivity : AppCompatActivity() {
 
         val lt = licenseType.lowercase().trim()
 
+        // FIX Bug 1: Jika licenseType kosong, jangan langsung asumsikan ClearKey.
+        // Deteksi otomatis berdasarkan format licenseKey:
+        // - Jika licenseKey adalah URL (http/https) → perlakukan sebagai Widevine
+        // - Jika licenseKey mengandung format "kid:key" → perlakukan sebagai ClearKey
+        val effectiveLt: String = if (lt.isEmpty()) {
+            val keyTrimmed = licenseKey.trim()
+            if (keyTrimmed.startsWith("http://") || keyTrimmed.startsWith("https://")) {
+                Log.d(TAG, "licenseType kosong, licenseKey adalah URL → auto-detect sebagai Widevine")
+                "widevine"
+            } else {
+                Log.d(TAG, "licenseType kosong, licenseKey bukan URL → auto-detect sebagai ClearKey")
+                "clearkey"
+            }
+        } else lt
+
         return try {
             when {
-                // ── ClearKey ──────────────────────────────────────────────
-                lt.isEmpty() || lt.contains("clearkey") || lt == "org.w3.clearkey" -> {
+                effectiveLt.contains("clearkey") || effectiveLt == "org.w3.clearkey" -> {
                     val keys = parseClearKeys(licenseKey)
                     if (keys.isEmpty()) {
-                        Log.w(TAG, "ClearKey: no valid key pairs parsed from '$licenseKey'")
+                        Log.w(TAG, "ClearKey: tidak ada key pair valid dari '$licenseKey'")
                         return null
                     }
                     val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
-                    Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON ready")
+                    Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON siap")
                     DashMediaSource.Factory(factory).createMediaSource(
                         MediaItem.Builder()
                             .setUri(uri)
@@ -535,10 +538,8 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 }
 
-                // ── Widevine ──────────────────────────────────────────────
-                lt.contains("widevine") ||
-                lt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
-                    // Format: "https://license.url" atau "https://license.url|Header: Value&Header2: Value2"
+                effectiveLt.contains("widevine") ||
+                effectiveLt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
                     val parts          = licenseKey.split("|")
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
@@ -556,9 +557,8 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 }
 
-                // ── PlayReady ─────────────────────────────────────────────
-                lt.contains("playready") ||
-                lt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
+                effectiveLt.contains("playready") ||
+                effectiveLt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
                     val parts          = licenseKey.split("|")
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
@@ -577,24 +577,19 @@ class PlayerActivity : AppCompatActivity() {
                 }
 
                 else -> {
-                    Log.w(TAG, "Unknown licenseType '$licenseType', skipping DRM")
+                    Log.w(TAG, "licenseType tidak dikenali: '$licenseType' — DRM dilewati")
                     null
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "DRM build failed: ${e.message}", e)
+            Log.e(TAG, "DRM build gagal: ${e.message}", e)
             null
         }
     }
 
-    /**
-     * Parse string header format "Key: Value&Key2: Value2" atau "Key=Value&Key2=Value2"
-     * yang umum digunakan setelah pipe di licenseKey Widevine/PlayReady.
-     */
     private fun parseHeaderString(raw: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
         raw.split("&").forEach { entry ->
-            // Coba format "Key: Value" dulu, lalu "Key=Value"
             val sep = if (entry.contains(": ")) ": " else "="
             val idx = entry.indexOf(sep)
             if (idx > 0) {
@@ -606,28 +601,19 @@ class PlayerActivity : AppCompatActivity() {
         return result
     }
 
-    /**
-     * Parse ClearKey pairs dari string licenseKey.
-     *
-     * Format yang didukung:
-     *  1. Hex plain:    "aaaabbbb...1111:ffffeeee...8888"
-     *  2. UUID dash:    "aaaabbbb-cccc-dddd-1111-2222:ffffeeee-dddc-ccbb-1111-0000"
-     *  3. Base64url:    "qqu7u8zM3d0RESLSM0RE:FO7u3czMu7ERAQCZ99iI"
-     *  4. Multi-pair:   "kid1:k1,kid2:k2"
-     *
-     * Return: list of (kid_base64url, k_base64url) siap masuk JSON
-     */
     private fun parseClearKeys(licenseKey: String): List<Pair<String, String>> {
         val result = mutableListOf<Pair<String, String>>()
         for (raw in licenseKey.split(",")) {
             val pair = raw.trim()
-            // Pisah hanya pada ':' pertama agar URL (yang punya '://') tidak tersplit
+            // FIX Bug 2: cek URL pada pair asli sebelum split by colon.
+            // Sebelumnya cek pada rawK setelah split, sehingga "https://..." → rawK = "//..."
+            // yang tidak pernah cocok dengan startsWith("https://").
+            if (pair.startsWith("http://") || pair.startsWith("https://")) continue
+
             val colonIdx = pair.indexOf(':')
             if (colonIdx <= 0) continue
             val rawKid = pair.substring(0, colonIdx).trim()
             val rawK   = pair.substring(colonIdx + 1).trim()
-            // Skip jika rawK terlihat seperti URL (Widevine/PlayReady format)
-            if (rawK.startsWith("http://") || rawK.startsWith("https://")) continue
 
             val kidB64 = toBase64Url(rawKid) ?: continue
             val kB64   = toBase64Url(rawK)   ?: continue
@@ -637,15 +623,9 @@ class PlayerActivity : AppCompatActivity() {
         return result
     }
 
-    /**
-     * Konversi satu string key ke base64url.
-     * Menerima: hex (dengan atau tanpa dash), base64url.
-     * Return null jika format tidak dikenal.
-     */
     private fun toBase64Url(raw: String): String? {
         val stripped = raw.replace("-", "").trim()
 
-        // Coba hex dulu
         if (stripped.isNotEmpty() && stripped.length % 2 == 0 &&
             stripped.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
         ) {
@@ -660,16 +640,14 @@ class PlayerActivity : AppCompatActivity() {
             } catch (e: Exception) { null }
         }
 
-        // Coba base64url — jika sudah dalam format itu, kembalikan apa adanya
         return try {
             val padded = raw + "=".repeat((4 - raw.length % 4) % 4)
             android.util.Base64.decode(padded, android.util.Base64.URL_SAFE)
-            raw   // valid base64url, pakai langsung
+            raw
         } catch (e: Exception) { null }
     }
 
     private fun buildClearKeyJson(keys: List<Pair<String, String>>): String {
-        // keys sudah berisi (kid_base64url, k_base64url) dari parseClearKeys()
         val arr = keys.joinToString(",") { (kid, k) ->
             """{"kty":"oct","kid":"$kid","k":"$k"}"""
         }
@@ -678,10 +656,6 @@ class PlayerActivity : AppCompatActivity() {
             android.util.Base64.NO_WRAP
         )
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // UI
-    // ════════════════════════════════════════════════════════════════════════
 
     private fun setupUI() {
         binding.tvChannelName.text = channelName
@@ -729,7 +703,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.tvError.text = message
             binding.btnRetry.setOnClickListener {
                 binding.errorLayout.visibility = View.GONE
-                retryCount = 0  // [FIX BUG-A] User klik retry = mulai dari awal
+                retryCount = 0
                 setupPlayer()
             }
             binding.btnErrorBack.setOnClickListener { finish() }
@@ -738,10 +712,6 @@ class PlayerActivity : AppCompatActivity() {
             showTopBarTemporarily()
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // NAVIGASI CHANNEL
-    // ════════════════════════════════════════════════════════════════════════
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         showTopBarTemporarily()
@@ -776,11 +746,11 @@ class PlayerActivity : AppCompatActivity() {
         val next = allChannels[nextIndex]
         currentChannelIndex = nextIndex
 
-        channelName  = next.name;  channelUrl  = next.url;      channelLogo = next.logoUrl
+        channelName  = next.name;  channelUrl  = next.url;      channelLogo  = next.logoUrl
         userAgent    = next.userAgent; licenseType = next.licenseType
         licenseKey   = next.licenseKey; referer  = next.referer
         channelId    = next.id;    mimeTypeHint = next.mimeTypeHint
-        retryCount   = 0  // [FIX BUG-A] Channel baru = retry counter baru dari 0
+        retryCount   = 0
 
         viewModel.onChannelWatched(channelId)
         binding.tvChannelName.text = channelName
@@ -816,10 +786,6 @@ class PlayerActivity : AppCompatActivity() {
         hidePositionHandler.postDelayed({ binding.tvChannelPosition.visibility = View.GONE }, 3_000)
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // PRE-BUFFER
-    // ════════════════════════════════════════════════════════════════════════
-
     private val preBufferHandler = Handler(Looper.getMainLooper())
 
     private fun startPreBuffer() {
@@ -829,10 +795,6 @@ class PlayerActivity : AppCompatActivity() {
         releasePreBuffer()
         val next = allChannels[nextIndex]
 
-        // [FIX #3] Skip pre-buffer untuk channel DRM — license negotiation tidak bisa
-        // dilakukan di background tanpa surface aktif, dan player DRM harus di-release
-        // lalu dibuat ulang saat dimainkan (Fix #1). Pre-buffer channel DRM akan
-        // menyebabkan resource waste dan state yang tidak konsisten.
         if (next.licenseKey.isNotEmpty()) {
             Log.d(TAG, "Pre-buffer skipped: '${next.name}' requires DRM license")
             return
@@ -840,15 +802,11 @@ class PlayerActivity : AppCompatActivity() {
 
         preBufferIndex = nextIndex
         try {
-            // [FIX OkHttp] Pre-buffer pakai OkHttp — konsisten dengan player utama
             val factory = OkHttpDataSource.Factory(sharedOkHttpClient).apply {
                 if (next.userAgent.isNotEmpty()) setUserAgent(next.userAgent)
             }
             val uri = Uri.parse(next.url)
 
-            // [FIX #3] Gunakan MediaSource yang sesuai dengan streamType channel berikutnya,
-            // bukan selalu HLS. Pre-buffer HLS untuk channel DASH akan selalu gagal diam-diam
-            // (consumePreBuffer() → null → setupPlayer() dari nol → jeda loading terlihat).
             val source: androidx.media3.exoplayer.source.MediaSource = when (next.streamType) {
                 "DASH" -> androidx.media3.exoplayer.dash.DashMediaSource.Factory(factory)
                     .createMediaSource(
@@ -857,7 +815,7 @@ class PlayerActivity : AppCompatActivity() {
                             .setMimeType(MimeTypes.APPLICATION_MPD)
                             .build()
                     )
-                else -> // HLS, PROGRESSIVE, RTMP → coba HLS sebagai default terbaik
+                else ->
                     HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri))
             }
 
@@ -884,10 +842,6 @@ class PlayerActivity : AppCompatActivity() {
         preBufferPlayer?.release(); preBufferPlayer = null; preBufferIndex = -1
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // PiP
-    // ════════════════════════════════════════════════════════════════════════
-
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             enterPictureInPictureMode(
@@ -908,10 +862,6 @@ class PlayerActivity : AppCompatActivity() {
         super.onPictureInPictureModeChanged(pip, cfg)
         binding.topBar.visibility = if (pip) View.GONE else View.VISIBLE
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // SLEEP TIMER
-    // ════════════════════════════════════════════════════════════════════════
 
     private fun showSleepTimerDialog() {
         val opts = arrayOf("15 menit","30 menit","45 menit","60 menit","90 menit","Matikan Timer")
@@ -944,10 +894,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.btnSleepTimer.setImageResource(R.drawable.ic_sleep_timer_active)
         binding.tvSleepTimer.text = "${min}m"; binding.tvSleepTimer.visibility = View.VISIBLE
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // UI HELPERS
-    // ════════════════════════════════════════════════════════════════════════
 
     private fun showTopBarTemporarily() {
         hideUiHandler.removeCallbacks(hideUiRunnable)
@@ -995,10 +941,6 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(cfg: Configuration) { super.onConfigurationChanged(cfg); enterFullscreen() }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // GESTURE
-    // ════════════════════════════════════════════════════════════════════════
-
     private fun setupGestureDetector() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
         maxVolume = audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC) ?: 15
@@ -1043,10 +985,6 @@ class PlayerActivity : AppCompatActivity() {
             }, 800)
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // LOCK ORIENTASI
-    // ════════════════════════════════════════════════════════════════════════
 
     private fun toggleOrientationLock() {
         isOrientationLocked = !isOrientationLocked
