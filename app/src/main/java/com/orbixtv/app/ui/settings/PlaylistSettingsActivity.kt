@@ -1,5 +1,7 @@
 package com.orbixtv.app.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -30,6 +32,10 @@ class PlaylistSettingsActivity : AppCompatActivity() {
 
     private fun setupUI() {
         binding.btnBack.setOnClickListener { finish() }
+
+        binding.btnSupport.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.support_url))))
+        }
 
         refreshSourceLabel()
 
