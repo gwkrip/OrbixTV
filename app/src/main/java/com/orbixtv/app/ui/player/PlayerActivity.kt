@@ -565,11 +565,11 @@ class PlayerActivity : AppCompatActivity() {
         }
         binding.btnSleepTimer.setOnClickListener { showSleepTimerDialog() }
         binding.btnPip.setOnClickListener { enterPipMode() }
-        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_prev_channel)
+        binding.playerView.findViewById<android.widget.ImageButton>(R.id.btn_prev_channel)
             ?.setOnClickListener { navigateChannel(-1) }
-        binding.playerView.findViewById<android.widget.ImageButton?>(R.id.btn_next_channel)
+        binding.playerView.findViewById<android.widget.ImageButton>(R.id.btn_next_channel)
             ?.setOnClickListener { navigateChannel(+1) }
-        binding.btnLockOrientation?.setOnClickListener { toggleOrientationLock() }
+        binding.btnLockOrientation.setOnClickListener { toggleOrientationLock() }
         updateFavoriteIcon()
         updateLiveBadge()
     }
@@ -874,13 +874,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showGestureOverlay(text: String) {
-        binding.tvGestureOverlay?.let { tv ->
-            tv.text = text; tv.visibility = View.VISIBLE; tv.animate().cancel(); tv.alpha = 1f
-            gestureOverlayHandler.removeCallbacksAndMessages(null)
-            gestureOverlayHandler.postDelayed({
-                tv.animate().alpha(0f).setDuration(300).withEndAction { tv.visibility = View.GONE }.start()
-            }, 800)
-        }
+        val tv = binding.tvGestureOverlay
+        tv.text = text; tv.visibility = View.VISIBLE; tv.animate().cancel(); tv.alpha = 1f
+        gestureOverlayHandler.removeCallbacksAndMessages(null)
+        gestureOverlayHandler.postDelayed({
+            tv.animate().alpha(0f).setDuration(300).withEndAction { tv.visibility = View.GONE }.start()
+        }, 800)
     }
 
     private fun toggleOrientationLock() {
@@ -888,7 +887,7 @@ class PlayerActivity : AppCompatActivity() {
         requestedOrientation = if (isOrientationLocked)
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        binding.btnLockOrientation?.setImageResource(
+        binding.btnLockOrientation.setImageResource(
             if (isOrientationLocked) R.drawable.ic_screen_lock_landscape else R.drawable.ic_fullscreen
         )
         showToast(if (isOrientationLocked) "🔒 Landscape terkunci" else "🔓 Rotasi otomatis")

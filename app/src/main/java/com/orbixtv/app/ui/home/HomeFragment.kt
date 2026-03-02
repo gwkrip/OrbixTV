@@ -94,8 +94,8 @@ class HomeFragment : Fragment() {
         binding.rvSearch.visibility = View.VISIBLE
         val sorted = viewModel.getFilteredSortedChannels(group.channels)
         tvChannelAdapter?.submitList(sorted)
-        binding.tvSearchCount?.text = "${group.flagEmoji} ${group.name}  —  ${sorted.size} saluran"
-        binding.tvSearchCount?.visibility = View.VISIBLE
+        binding.tvSearchCount.text = "${group.flagEmoji} ${group.name}  —  ${sorted.size} saluran"
+        binding.tvSearchCount.visibility = View.VISIBLE
     }
 
     private fun setupSortFilter() {
@@ -175,7 +175,7 @@ class HomeFragment : Fragment() {
                     } else {
                         binding.searchPanel?.visibility = View.GONE
                         binding.rvGroups.visibility = View.VISIBLE
-                        binding.tvSearchCount?.visibility = View.GONE
+                        binding.tvSearchCount.visibility = View.GONE
                     }
                 }
 
@@ -230,9 +230,9 @@ class HomeFragment : Fragment() {
                     val sorted = viewModel.getFilteredSortedChannels(results)
                     if (isTvLayout) tvChannelAdapter?.submitList(sorted)
                     else searchAdapter.submitList(sorted)
-                    binding.tvSearchCount?.text = if (sorted.isEmpty()) "Tidak ditemukan"
+                    binding.tvSearchCount.text = if (sorted.isEmpty()) "Tidak ditemukan"
                         else "${sorted.size} hasil pencarian"
-                    binding.tvSearchCount?.visibility = View.VISIBLE
+                    binding.tvSearchCount.visibility = View.VISIBLE
                 } else if (!isTvLayout) {
                     searchAdapter.submitList(emptyList())
                 }
@@ -241,7 +241,7 @@ class HomeFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.loadError.collectLatest { error ->
-                binding.tvPlaylistWarning?.visibility =
+                binding.tvPlaylistWarning.visibility =
                     if (error != null) View.VISIBLE else View.GONE
             }
         }

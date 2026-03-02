@@ -64,7 +64,7 @@ class ChannelAdapter(
         private val binding: ItemChannelBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        private val cardView: CardView? = binding.root as? CardView
+        private val cardView: CardView = binding.root
         private var pingJob: Job? = null
         private var boundChannelId: String = ""
 
