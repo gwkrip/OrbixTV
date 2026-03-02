@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrbixTV — Tontonan Tanpa Batas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0A0A0F;
+    --surface:   #13131C;
+    --card:      #1A1A26;
+    --border:    #252535;
+    --blue:      #4D9EFF;
+    --blue-glow: #4D9EFF33;
+    --blue-dim:  #1A3A5C;
+    --white:     #F0F4FF;
+    --muted:     #8899BB;
+    --hint:      #3A4A60;
+    --green:     #44CC66;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--white);
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* ── GRAIN OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 999; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.35;
+  }
+
+  /* ── AMBIENT GLOW ── */
+  .ambient {
+    position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+    width: 800px; height: 600px; border-radius: 50%;
+    background: radial-gradient(ellipse, #4D9EFF18 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+    animation: pulse 8s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; height: 64px;
+    background: linear-gradient(to bottom, #0A0A0FDD, transparent);
+    backdrop-filter: blur(12px);
+  }
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 20px;
+    letter-spacing: 0.02em;
+    color: var(--white);
+  }
+  .nav-logo span { color: var(--blue); }
+  .nav-link {
+    font-size: 13px; color: var(--muted);
+    text-decoration: none; letter-spacing: 0.03em;
+    transition: color .2s;
+  }
+  .nav-link:hover { color: var(--white); }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative; z-index: 1;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 100px 24px 80px;
+  }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--blue);
+    background: var(--blue-dim); border: 1px solid #2A5080;
+    padding: 6px 16px; border-radius: 100px;
+    margin-bottom: 32px;
+    animation: fadeUp .6s ease both;
+  }
+  .badge-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--blue);
+    box-shadow: 0 0 8px var(--blue);
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(52px, 10vw, 96px);
+    font-weight: 800; line-height: 0.92;
+    letter-spacing: -0.03em;
+    animation: fadeUp .7s .1s ease both;
+  }
+  h1 .accent { color: var(--blue); }
+  h1 .sub {
+    display: block;
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 400; color: var(--muted);
+    letter-spacing: -0.01em;
+    margin-top: 8px;
+  }
+
+  .tagline {
+    font-size: clamp(15px, 2vw, 18px);
+    color: var(--muted); font-weight: 300;
+    max-width: 480px; line-height: 1.6;
+    margin-top: 24px;
+    animation: fadeUp .7s .2s ease both;
+  }
+
+  .cta-group {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    justify-content: center; margin-top: 48px;
+    animation: fadeUp .7s .3s ease both;
+  }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 16px 32px; border-radius: 14px;
+    background: var(--blue);
+    color: #fff; font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 15px;
+    text-decoration: none; letter-spacing: 0.02em;
+    position: relative; overflow: hidden;
+    transition: transform .2s, box-shadow .2s;
+    box-shadow: 0 8px 32px #4D9EFF44;
+  }
+  .btn-primary::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, #ffffff22, transparent);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px #4D9EFF66;
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 16px 28px; border-radius: 14px;
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 14px;
+    text-decoration: none;
+    transition: border-color .2s, color .2s, transform .2s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--blue); color: var(--blue);
+    transform: translateY(-2px);
+  }
+
+  .dl-icon { font-size: 18px; }
+
+  /* ── DIVIDER ── */
+  .divider {
+    position: relative; z-index: 1;
+    display: flex; align-items: center; gap: 16px;
+    max-width: 900px; margin: 0 auto;
+    padding: 0 24px;
+  }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 11px; letter-spacing: 0.1em; color: var(--hint); text-transform: uppercase; }
+
+  /* ── FEATURES ── */
+  .section {
+    position: relative; z-index: 1;
+    max-width: 960px; margin: 0 auto;
+    padding: 80px 24px;
+  }
+  .section-label {
+    font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--blue);
+    font-weight: 500; margin-bottom: 12px;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 4vw, 40px);
+    font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 48px;
+  }
+  .section-title em { font-style: normal; color: var(--muted); }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .feature-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+    transition: border-color .2s, transform .2s;
+    opacity: 0; transform: translateY(20px);
+    transition: opacity .5s ease, transform .5s ease, border-color .2s;
+  }
+  .feature-card.visible { opacity: 1; transform: translateY(0); }
+  .feature-card:hover { border-color: var(--blue-dim); transform: translateY(-4px); }
+
+  .feature-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--blue-dim); display: flex; align-items: center;
+    justify-content: center; font-size: 20px; margin-bottom: 16px;
+  }
+  .feature-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600; font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── INFO BAR ── */
+  .info-bar {
+    position: relative; z-index: 1;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .info-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 40px;
+    border-right: 1px solid var(--border);
+    flex: 1; min-width: 140px;
+  }
+  .info-item:last-child { border-right: none; }
+  .info-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px; font-weight: 800;
+    color: var(--blue);
+  }
+  .info-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ── SUPPORT ── */
+  .support-section {
+    position: relative; z-index: 1;
+    max-width: 600px; margin: 0 auto;
+    padding: 64px 24px 80px;
+    text-align: center;
+  }
+  .support-card {
+    background: var(--card);
+    border: 1px solid #2E6B2E44;
+    border-radius: 20px; padding: 36px;
+    background: linear-gradient(135deg, #13201A, #0F1510);
+  }
+  .support-emoji { font-size: 40px; margin-bottom: 16px; }
+  .support-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 22px;
+    margin-bottom: 10px;
+  }
+  .support-desc { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 28px; }
+  .btn-support {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 28px; border-radius: 12px;
+    background: transparent; border: 1.5px solid var(--green);
+    color: var(--green); font-size: 14px; font-weight: 500;
+    text-decoration: none;
+    transition: background .2s, transform .2s;
+  }
+  .btn-support:hover {
+    background: #44CC6622;
+    transform: translateY(-2px);
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 28px 40px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .footer-logo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
+  .footer-logo span { color: var(--blue); }
+  .footer-text { font-size: 12px; color: var(--hint); }
+  .footer-link { color: var(--muted); text-decoration: none; font-size: 12px; transition: color .2s; }
+  .footer-link:hover { color: var(--blue); }
+
+  /* ── ANIMS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    nav { padding: 0 20px; }
+    .info-item { padding: 20px 16px; }
+    footer { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">Orbix<span>TV</span></div>
+  <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="nav-link">GitHub →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge">
+    <span class="badge-dot"></span>
+    Tersedia gratis untuk Android
+  </div>
+
+  <h1>
+    Orbix<span class="accent">TV</span>
+    <span class="sub">Tontonan Tanpa Batas</span>
+  </h1>
+
+  <p class="tagline">
+    Pemutar IPTV modern untuk Android. Dukung M3U, HLS, DASH, dan RTMP. 
+    Ringan, cepat, dan tanpa iklan.
+  </p>
+
+  <div class="cta-group">
+    <a href="https://github.com/gwkrip/OrbixTV/releases" target="_blank" class="btn-primary">
+      <span class="dl-icon">⬇</span>
+      Download APK
+    </a>
+    <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="btn-secondary">
+      ⭐ GitHub
+    </a>
+  </div>
+</section>
+
+<!-- INFO BAR -->
+<div class="info-bar">
+  <div class="info-item">
+    <span class="info-value">Free</span>
+    <span class="info-label">Gratis selamanya</span>
+  </div>
+  <div class="info-item">
+    <span class="info-value">M3U</span>
+    <span class="info-label">Format playlist</span>
+  </div>
+  <div class="info-item">
+    <span class="info-value">PiP</span>
+    <span class="info-label">Picture in Picture</span>
+  </div>
+  <div class="info-item">
+    <span class="info-value">TV</span>
+    <span class="info-label">Android TV ready</span>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section">
+  <p class="section-label">Fitur Utama</p>
+  <h2 class="section-title">Semua yang kamu butuhkan, <em>tidak lebih.</em></h2>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📡</div>
+      <div class="feature-title">Custom Playlist URL</div>
+      <div class="feature-desc">Masukkan URL M3U atau M3U8 dari sumber manapun. Mendukung Xtream Codes dan raw link.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">▶️</div>
+      <div class="feature-title">Multi-format Playback</div>
+      <div class="feature-desc">Memutar HLS, DASH, RTMP, dan format stream populer lainnya dengan fallback otomatis.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">❤️</div>
+      <div class="feature-title">Favorit & Riwayat</div>
+      <div class="feature-desc">Simpan channel favorit dan akses riwayat tontonan terakhir dengan cepat.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🖼️</div>
+      <div class="feature-title">Picture in Picture</div>
+      <div class="feature-desc">Terus nonton sambil menggunakan aplikasi lain. PiP tersedia di semua Android 8.0+.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📺</div>
+      <div class="feature-title">Android TV Ready</div>
+      <div class="feature-desc">Tampilan dioptimalkan untuk layar besar dan navigasi remote Android TV.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⏱️</div>
+      <div class="feature-title">Sleep Timer</div>
+      <div class="feature-desc">Atur waktu otomatis berhenti memutar, cocok untuk tontonan sebelum tidur.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">👆</div>
+      <div class="feature-title">Gesture Control</div>
+      <div class="feature-desc">Atur volume dan kecerahan layar cukup dengan swipe di layar pemain.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔄</div>
+      <div class="feature-title">Sort & Filter</div>
+      <div class="feature-desc">Urutkan dan filter channel berdasarkan nama, tipe stream, atau grup.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider">
+  <div class="divider-line"></div>
+  <span class="divider-text">Open Source</span>
+  <div class="divider-line"></div>
+</div>
+
+<!-- SUPPORT -->
+<section class="support-section">
+  <div class="support-card">
+    <div class="support-emoji">☕</div>
+    <h3 class="support-title">Dukung Pengembang</h3>
+    <p class="support-desc">
+      OrbixTV dibuat dan dijaga gratis. Jika aplikasi ini bermanfaat untukmu,
+      kamu bisa traktir kopi sebagai bentuk dukungan pengembangan.
+    </p>
+    <a href="https://saweria.co/vryptdev" target="_blank" class="btn-support">
+      ☕ Traktir di Saweria
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">Orbix<span>TV</span></div>
+  <span class="footer-text">Dibuat dengan ❤️ untuk komunitas IPTV Indonesia</span>
+  <div style="display:flex;gap:20px">
+    <a href="https://github.com/gwkrip/OrbixTV/releases" target="_blank" class="footer-link">Download</a>
+    <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="footer-link">Source Code</a>
+    <a href="https://saweria.co/vryptdev" target="_blank" class="footer-link">Donasi</a>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal for feature cards
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.feature-card').forEach(card => observer.observe(card));
+</script>
+</body>
+</html>
