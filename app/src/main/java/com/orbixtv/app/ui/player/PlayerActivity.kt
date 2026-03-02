@@ -29,12 +29,14 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.bumptech.glide.Glide
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
@@ -71,6 +73,18 @@ class PlayerActivity : AppCompatActivity() {
         // [FIX #4] Timeout khusus DRM — Widevine license round-trip bisa >20 detik
         // di jaringan lambat (download manifest → parse PSSH → request license → decrypt).
         private const val BUFFERING_TIMEOUT_DRM_MS = 35_000L
+
+        // [FIX OkHttp] Shared OkHttpClient untuk player — konsisten dengan M3uParser.
+        // DefaultHttpDataSource (HttpURLConnection) tidak support HTTP/2 dan sering
+        // gagal di CDN seperti CloudFront/Akamai yang aggressive redirect + HTTP/2.
+        val sharedOkHttpClient: OkHttpClient by lazy {
+            OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(15, TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
+        }
     }
 
     private lateinit var binding: ActivityPlayerBinding
@@ -426,30 +440,40 @@ class PlayerActivity : AppCompatActivity() {
 
     // ── Build helpers ─────────────────────────────────────────────────────
 
-    private fun buildDataSourceFactory(): DefaultHttpDataSource.Factory =
-        DefaultHttpDataSource.Factory().apply {
-            setUserAgent(userAgent.ifEmpty {
+    // [FIX OkHttp] Ganti DefaultHttpDataSource → OkHttpDataSource
+    // Root cause lama: DefaultHttpDataSource (HttpURLConnection) tidak support HTTP/2.
+    // CloudFront dan Akamai CDN memakai HTTP/2 aggressively + redirect chain.
+    // Dengan HttpURLConnection:
+    //   1. HTTP/2 multiplexing tidak aktif → setiap request buka koneksi baru
+    //   2. Redirect kadang tidak diikuti correctly untuk HTTPS→HTTPS
+    //   3. Segment DASH pertama kadang timeout karena koneksi TCP baru
+    // Dengan OkHttp: semua masalah di atas teratasi. OkHttp sudah ada di
+    // dependencies (media3-datasource-okhttp) tapi sebelumnya tidak dipakai!
+    private fun buildDataSourceFactory(): OkHttpDataSource.Factory {
+        val factory = OkHttpDataSource.Factory(sharedOkHttpClient)
+        factory.setUserAgent(
+            userAgent.ifEmpty {
                 "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
-            })
-            val headers = mutableMapOf<String, String>()
-            if (referer.isNotEmpty()) {
-                headers["Referer"] = referer
-                val uri  = Uri.parse(referer)
-                val port = uri.port
-                headers["Origin"] = buildString {
-                    append(uri.scheme ?: "https").append("://").append(uri.host ?: "")
-                    if (port != -1) append(":$port")
-                }
             }
-            if (headers.isNotEmpty()) setDefaultRequestProperties(headers)
-            setConnectTimeoutMs(15_000)
-            setReadTimeoutMs(15_000)
+        )
+        val headers = mutableMapOf<String, String>()
+        if (referer.isNotEmpty()) {
+            headers["Referer"] = referer
+            val uri  = Uri.parse(referer)
+            val port = uri.port
+            headers["Origin"] = buildString {
+                append(uri.scheme ?: "https").append("://").append(uri.host ?: "")
+                if (port != -1) append(":$port")
+            }
         }
+        if (headers.isNotEmpty()) factory.setDefaultRequestProperties(headers)
+        return factory
+    }
 
     private fun buildMediaSourceForKnownType(
         url: String,
         type: M3uParser.StreamType,
-        factory: DefaultHttpDataSource.Factory
+        factory: OkHttpDataSource.Factory
     ): MediaSource {
         val uri = Uri.parse(url)
         return when (type) {
@@ -482,7 +506,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun tryBuildDrmMediaSource(
         uri: Uri,
-        factory: DefaultHttpDataSource.Factory
+        factory: OkHttpDataSource.Factory
     ): MediaSource? {
         if (licenseKey.isEmpty()) return null
 
@@ -816,8 +840,8 @@ class PlayerActivity : AppCompatActivity() {
 
         preBufferIndex = nextIndex
         try {
-            val factory = androidx.media3.datasource.DefaultHttpDataSource.Factory().apply {
-                setConnectTimeoutMs(10_000); setReadTimeoutMs(10_000)
+            // [FIX OkHttp] Pre-buffer pakai OkHttp — konsisten dengan player utama
+            val factory = OkHttpDataSource.Factory(sharedOkHttpClient).apply {
                 if (next.userAgent.isNotEmpty()) setUserAgent(next.userAgent)
             }
             val uri = Uri.parse(next.url)
