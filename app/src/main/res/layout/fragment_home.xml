@@ -18,17 +18,18 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="@dimen/content_padding"
-            android:paddingTop="14dp"
-            android:paddingBottom="12dp">
+            android:paddingTop="16dp"
+            android:paddingBottom="14dp">
 
-            <!-- Top row: app name + channel count + action buttons -->
+            <!-- Top row: logo area + app name + actions -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="10dp">
+                android:layout_marginBottom="14dp">
 
+                <!-- App branding block -->
                 <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
@@ -40,8 +41,9 @@
                         android:layout_height="wrap_content"
                         android:text="@string/app_name"
                         android:textColor="@color/white"
-                        android:textSize="@dimen/text_title"
-                        android:fontFamily="sans-serif-black" />
+                        android:textSize="24sp"
+                        android:fontFamily="sans-serif-black"
+                        android:letterSpacing="-0.02" />
 
                     <TextView
                         android:id="@+id/tv_channel_count"
@@ -50,10 +52,11 @@
                         android:text="@string/loading"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp"
-                        android:layout_marginTop="1dp" />
+                        android:layout_marginTop="2dp"
+                        android:letterSpacing="0.01" />
                 </LinearLayout>
 
-                <!-- Buttons group -->
+                <!-- Action buttons -->
                 <ImageButton
                     android:id="@+id/btn_refresh"
                     android:layout_width="@dimen/touch_target"
@@ -89,27 +92,27 @@
                 android:id="@+id/tv_playlist_warning"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="10dp"
-                android:padding="10dp"
+                android:layout_marginBottom="12dp"
+                android:padding="12dp"
                 android:text="@string/playlist_warning"
                 android:textColor="#FFAA44"
                 android:textSize="12sp"
-                android:lineSpacingMultiplier="1.3"
+                android:lineSpacingMultiplier="1.4"
                 android:background="@drawable/bg_warning_banner"
                 android:visibility="gone" />
 
-            <!-- Search bar -->
+            <!-- Search bar — pill style -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="42dp"
+                android:layout_height="46dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:background="@drawable/bg_search_v2"
-                android:paddingHorizontal="12dp">
+                android:paddingHorizontal="14dp">
 
                 <ImageView
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
                     android:src="@drawable/ic_search"
                     android:tint="@color/text_secondary"
                     android:importantForAccessibility="no" />
@@ -119,7 +122,7 @@
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
                     android:layout_weight="1"
-                    android:layout_marginStart="4dp"
+                    android:layout_marginStart="6dp"
                     app:iconifiedByDefault="false"
                     app:queryHint="@string/search_hint"
                     app:searchIcon="@null"
@@ -131,7 +134,7 @@
 
         </LinearLayout>
 
-        <!-- Bottom divider AppBar -->
+        <!-- Gradient bottom edge -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -144,7 +147,7 @@
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- Skeleton shimmer saat playlist loading -->
+        <!-- Skeleton shimmer -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/shimmer_home"
             android:layout_width="match_parent"
@@ -155,7 +158,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingTop="6dp">
+                android:paddingTop="8dp">
 
                 <include layout="@layout/item_group_skeleton" />
                 <include layout="@layout/item_group_skeleton" />
@@ -174,11 +177,11 @@
             android:layout_height="match_parent"
             android:scrollbars="none"
             android:clipToPadding="false"
-            android:paddingTop="4dp"
-            android:paddingBottom="72dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="80dp"
             android:visibility="gone" />
 
-        <!-- Panel pencarian -->
+        <!-- Search results panel -->
         <LinearLayout
             android:id="@+id/search_panel"
             android:layout_width="match_parent"
@@ -191,12 +194,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="@dimen/content_padding"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="6dp"
                 android:textColor="@color/text_secondary"
-                android:textSize="12sp" />
+                android:textSize="12sp"
+                android:letterSpacing="0.02" />
 
-            <!-- Skeleton saat menunggu hasil search -->
             <com.facebook.shimmer.ShimmerFrameLayout
                 android:id="@+id/shimmer_search"
                 android:layout_width="match_parent"
@@ -223,7 +226,7 @@
                 android:layout_weight="1"
                 android:scrollbars="none"
                 android:clipToPadding="false"
-                android:paddingBottom="72dp" />
+                android:paddingBottom="80dp" />
         </LinearLayout>
 
     </FrameLayout>

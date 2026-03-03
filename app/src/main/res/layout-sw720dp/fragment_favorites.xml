@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark">
@@ -10,7 +11,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header — sama persis dengan phone -->
+        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,8 +24,8 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="@dimen/content_padding"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp">
+                android:paddingTop="16dp"
+                android:paddingBottom="14dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -37,8 +38,9 @@
                         android:layout_height="wrap_content"
                         android:text="@string/favorites_title"
                         android:textColor="@color/white"
-                        android:textSize="@dimen/text_title"
-                        android:fontFamily="sans-serif-black"/>
+                        android:textSize="24sp"
+                        android:fontFamily="sans-serif-black"
+                        android:letterSpacing="-0.02" />
 
                     <TextView
                         android:id="@+id/tv_favorites_count"
@@ -46,23 +48,43 @@
                         android:layout_height="wrap_content"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp"
-                        android:layout_marginTop="1dp"/>
+                        android:layout_marginTop="2dp" />
                 </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btn_import"
+                    android:layout_width="@dimen/touch_target"
+                    android:layout_height="@dimen/touch_target"
+                    android:src="@drawable/ic_arrow_down"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/text_secondary"
+                    android:contentDescription="@string/import_favorites" />
+
+                <ImageButton
+                    android:id="@+id/btn_export"
+                    android:layout_width="@dimen/touch_target"
+                    android:layout_height="@dimen/touch_target"
+                    android:src="@drawable/ic_arrow_down"
+                    android:rotation="180"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/text_secondary"
+                    android:contentDescription="@string/export_favorites" />
 
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/divider"/>
+                android:background="@color/divider" />
+
         </LinearLayout>
 
-        <!-- Skeleton — pakai TV skeleton (sw720dp) -->
+        <!-- Skeleton shimmer -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/shimmer_favorites"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:visibility="visible">
 
             <LinearLayout
@@ -71,11 +93,11 @@
                 android:orientation="vertical"
                 android:paddingTop="4dp">
 
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
 
             </LinearLayout>
         </com.facebook.shimmer.ShimmerFrameLayout>
@@ -85,15 +107,11 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingTop="4dp"
-            android:paddingBottom="8dp"
-            android:clipToPadding="false"
             android:scrollbars="none"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:descendantFocusability="afterDescendants"
-            android:defaultFocusHighlightEnabled="false"
-            android:visibility="gone"/>
+            android:clipToPadding="false"
+            android:paddingTop="6dp"
+            android:paddingBottom="80dp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Empty state -->
@@ -104,33 +122,34 @@
         android:layout_gravity="center"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingHorizontal="48dp">
+        android:paddingHorizontal="40dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="💔"
-            android:textSize="64sp"/>
+            android:text="@string/favorites_empty_icon"
+            android:textSize="56sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="18dp"
             android:text="@string/favorites_empty_title"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/white"
             android:textSize="18sp"
             android:fontFamily="sans-serif-medium"
-            android:gravity="center"/>
+            android:gravity="center"
+            android:letterSpacing="-0.01" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/favorites_empty_hint"
-            android:textColor="@color/text_hint"
-            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
             android:gravity="center"
-            android:lineSpacingMultiplier="1.4"/>
+            android:lineSpacingMultiplier="1.5" />
     </LinearLayout>
 
 </FrameLayout>
