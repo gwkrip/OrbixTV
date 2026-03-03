@@ -181,6 +181,13 @@
             android:paddingBottom="80dp"
             android:visibility="gone" />
 
+        <!-- Marker view: dipakai HomeFragment untuk mendeteksi layout tablet/TV -->
+        <View
+            android:id="@+id/empty_panel"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
         <!-- Search results panel -->
         <LinearLayout
             android:id="@+id/search_panel"
