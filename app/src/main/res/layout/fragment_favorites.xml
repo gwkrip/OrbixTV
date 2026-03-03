@@ -77,6 +77,28 @@
             app:closeIcon="@drawable/ic_close"
             android:visibility="gone" />
 
+        <!-- Skeleton shimmer saat playlist pertama kali loading -->
+        <com.facebook.shimmer.ShimmerFrameLayout
+            android:id="@+id/shimmer_favorites"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="visible">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="4dp">
+
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton" />
+
+            </LinearLayout>
+        </com.facebook.shimmer.ShimmerFrameLayout>
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_favorites"
             android:layout_width="match_parent"

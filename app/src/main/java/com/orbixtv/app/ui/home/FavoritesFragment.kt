@@ -20,6 +20,7 @@ import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentFavoritesBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
+import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
@@ -65,6 +66,7 @@ class FavoritesFragment : Fragment() {
 
         setupSearch()
         setupExportImport()
+        observeLoadingState()
         observeFavorites()
     }
 
@@ -143,6 +145,26 @@ class FavoritesFragment : Fragment() {
             .setMessage(message)
             .setPositiveButton(getString(R.string.ok), null)
             .show()
+    }
+
+    private fun observeLoadingState() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isLoading.collectLatest { loading ->
+                if (loading) {
+                    binding.shimmerFavorites.visibility = View.VISIBLE
+                    binding.shimmerFavorites.startShimmer()
+                } else {
+                    binding.shimmerFavorites.stopShimmer()
+                    binding.shimmerFavorites.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction {
+                            binding.shimmerFavorites.visibility = View.GONE
+                            binding.shimmerFavorites.alpha = 1f
+                        }.start()
+                }
+            }
+        }
     }
 
     private fun observeFavorites() {

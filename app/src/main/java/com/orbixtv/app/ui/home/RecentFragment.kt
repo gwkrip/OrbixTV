@@ -16,6 +16,7 @@ import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentRecentBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
+import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -69,7 +70,20 @@ class RecentFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
-                if (!loading) refreshRecent()
+                if (loading) {
+                    binding.shimmerRecent.visibility = View.VISIBLE
+                    binding.shimmerRecent.startShimmer()
+                } else {
+                    binding.shimmerRecent.stopShimmer()
+                    binding.shimmerRecent.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction {
+                            binding.shimmerRecent.visibility = View.GONE
+                            binding.shimmerRecent.alpha = 1f
+                        }.start()
+                    refreshRecent()
+                }
             }
         }
     }

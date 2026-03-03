@@ -25,6 +25,7 @@ import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
 import com.orbixtv.app.ui.settings.PlaylistSettingsActivity
 import com.orbixtv.app.ui.tv.TvGroupAdapter
+import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -230,10 +231,31 @@ class HomeFragment : Fragment() {
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
-                binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
-                if (!loading) binding.btnRefresh.clearAnimation()
-                if (!isTvLayout) {
-                    binding.rvGroups.visibility = if (loading) View.GONE else View.VISIBLE
+                if (loading) {
+                    // Tampilkan skeleton, sembunyikan konten
+                    binding.shimmerHome.visibility = View.VISIBLE
+                    binding.shimmerHome.startShimmer()
+                    if (!isTvLayout) {
+                        binding.rvGroups.visibility = View.GONE
+                    }
+                } else {
+                    // Stop shimmer + fade out skeleton, fade in konten
+                    binding.shimmerHome.stopShimmer()
+                    binding.shimmerHome.animate()
+                        .alpha(0f)
+                        .setDuration(250)
+                        .withEndAction {
+                            binding.shimmerHome.visibility = View.GONE
+                            binding.shimmerHome.alpha = 1f
+                        }.start()
+
+                    binding.btnRefresh.clearAnimation()
+
+                    if (!isTvLayout) {
+                        binding.rvGroups.alpha = 0f
+                        binding.rvGroups.visibility = View.VISIBLE
+                        binding.rvGroups.animate().alpha(1f).setDuration(250).start()
+                    }
                 }
             }
         }
@@ -244,6 +266,12 @@ class HomeFragment : Fragment() {
                 binding.tvChannelCount.text = "$totalChannels saluran"
 
                 if (isTvLayout) {
+                    // Tampilkan rv_groups TV saat data pertama kali tiba
+                    if (binding.rvGroups.visibility == View.GONE && groups.isNotEmpty()) {
+                        binding.rvGroups.alpha = 0f
+                        binding.rvGroups.visibility = View.VISIBLE
+                        binding.rvGroups.animate().alpha(1f).setDuration(250).start()
+                    }
                     tvGroupAdapter?.submitList(groups)
                     if (groups.isNotEmpty() && tvChannelAdapter?.currentList.isNullOrEmpty()) {
                         showChannelsForGroup(groups.first())
