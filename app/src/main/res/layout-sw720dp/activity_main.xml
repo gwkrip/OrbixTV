@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Layout TV/tablet: side navigation rail, konten mengisi sisa layar -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8,7 +7,7 @@
     android:orientation="horizontal"
     android:background="@color/bg_dark">
 
-    <!-- Side Navigation Rail (kiri) -->
+    <!-- Side Navigation Rail — warna sama dengan phone bottom nav -->
     <com.google.android.material.navigationrail.NavigationRailView
         android:id="@+id/side_nav"
         android:layout_width="wrap_content"
@@ -18,15 +17,16 @@
         app:itemTextColor="@color/nav_item_color"
         app:labelVisibilityMode="labeled"
         app:menu="@menu/bottom_nav_menu"
-        app:itemIconSize="28dp" />
+        app:itemIconSize="@dimen/nav_icon_size"
+        app:elevation="0dp"/>
 
-    <!-- Divider vertikal -->
+    <!-- Divider vertikal — pakai @color/divider, konsisten dengan phone -->
     <View
         android:layout_width="1dp"
         android:layout_height="match_parent"
-        android:background="@color/bg_card" />
+        android:background="@color/divider"/>
 
-    <!-- Konten fragment -->
+    <!-- Fragment content -->
     <fragment
         android:id="@+id/nav_host_fragment"
         android:name="androidx.navigation.fragment.NavHostFragment"
@@ -34,14 +34,14 @@
         android:layout_height="match_parent"
         android:layout_weight="1"
         app:defaultNavHost="true"
-        app:navGraph="@navigation/nav_graph" />
+        app:navGraph="@navigation/nav_graph"/>
 
-    <!-- Bottom nav disembunyikan di layout TV -->
+    <!-- Bottom nav hidden di TV -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_nav"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:visibility="gone"
-        app:menu="@menu/bottom_nav_menu" />
+        app:menu="@menu/bottom_nav_menu"/>
 
 </LinearLayout>

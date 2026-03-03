@@ -10,7 +10,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header TV — konsisten -->
+        <!-- Header — sama persis dengan phone -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -22,9 +22,9 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="28dp"
-                android:paddingTop="20dp"
-                android:paddingBottom="16dp">
+                android:paddingHorizontal="@dimen/content_padding"
+                android:paddingTop="14dp"
+                android:paddingBottom="12dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -39,36 +39,35 @@
                         android:text="@string/recent_title"
                         android:textColor="@color/white"
                         android:textSize="@dimen/text_title"
-                        android:fontFamily="sans-serif-black" />
+                        android:fontFamily="sans-serif-black"/>
 
                     <TextView
                         android:id="@+id/tv_recent_count"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:textColor="@color/text_secondary"
-                        android:textSize="@dimen/text_secondary"
-                        android:layout_marginTop="2dp" />
+                        android:textSize="11sp"
+                        android:layout_marginTop="1dp"/>
                 </LinearLayout>
 
                 <ImageButton
                     android:id="@+id/btn_clear_history"
-                    android:layout_width="@dimen/icon_btn_size"
-                    android:layout_height="@dimen/icon_btn_size"
+                    android:layout_width="@dimen/touch_target"
+                    android:layout_height="@dimen/touch_target"
                     android:src="@drawable/ic_close"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@color/text_secondary"
                     android:contentDescription="@string/clear_history"
-                    android:visibility="gone" />
+                    android:visibility="gone"/>
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/divider" />
-
+                android:background="@color/divider"/>
         </LinearLayout>
 
-        <!-- Skeleton shimmer TV saat loading -->
+        <!-- Skeleton — pakai TV skeleton (sw720dp) -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/shimmer_recent"
             android:layout_width="match_parent"
@@ -82,10 +81,10 @@
                 android:orientation="vertical"
                 android:paddingTop="4dp">
 
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
 
             </LinearLayout>
         </com.facebook.shimmer.ShimmerFrameLayout>
@@ -95,18 +94,18 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingHorizontal="16dp"
             android:paddingTop="4dp"
+            android:paddingBottom="8dp"
             android:clipToPadding="false"
             android:scrollbars="none"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:descendantFocusability="afterDescendants"
             android:defaultFocusHighlightEnabled="false"
-            android:visibility="gone" />
+            android:visibility="gone"/>
     </LinearLayout>
 
-    <!-- Empty state TV -->
+    <!-- Empty state -->
     <LinearLayout
         android:id="@+id/empty_state"
         android:layout_width="wrap_content"
@@ -120,7 +119,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📺"
-            android:textSize="72sp" />
+            android:textSize="64sp"/>
 
         <TextView
             android:layout_width="wrap_content"
@@ -128,9 +127,9 @@
             android:layout_marginTop="20dp"
             android:text="@string/recent_empty_title"
             android:textColor="@color/text_secondary"
-            android:textSize="20sp"
+            android:textSize="18sp"
             android:fontFamily="sans-serif-medium"
-            android:gravity="center" />
+            android:gravity="center"/>
 
         <TextView
             android:layout_width="wrap_content"
@@ -138,9 +137,9 @@
             android:layout_marginTop="8dp"
             android:text="@string/recent_empty_hint"
             android:textColor="@color/text_hint"
-            android:textSize="15sp"
+            android:textSize="14sp"
             android:gravity="center"
-            android:lineSpacingMultiplier="1.4" />
+            android:lineSpacingMultiplier="1.4"/>
     </LinearLayout>
 
 </FrameLayout>

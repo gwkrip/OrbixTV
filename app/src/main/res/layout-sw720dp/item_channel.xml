@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TV item_channel: selector langsung di CardView untuk focus state yang tepat -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -14,7 +13,10 @@
     app:cardCornerRadius="@dimen/channel_card_radius"
     app:cardElevation="0dp">
 
-    <!-- Inner layout pakai selector untuk highlight fokus D-pad -->
+    <!--
+        Inner LinearLayout: background selector_tv_focus (transparent default,
+        biru saat fokus D-pad). Tidak double-paint karena default = transparent.
+    -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -25,7 +27,6 @@
         android:background="@drawable/selector_tv_focus"
         android:duplicateParentState="true">
 
-        <!-- Logo TV — lebih besar -->
         <ImageView
             android:id="@+id/iv_logo"
             android:layout_width="@dimen/channel_logo_size"
@@ -33,16 +34,14 @@
             android:scaleType="fitCenter"
             android:src="@drawable/ic_tv_placeholder"
             android:background="@drawable/bg_logo"
-            android:padding="8dp"
-            android:duplicateParentState="true" />
+            android:padding="8dp"/>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="16dp"
-            android:orientation="vertical"
-            android:duplicateParentState="true">
+            android:orientation="vertical">
 
             <TextView
                 android:id="@+id/tv_channel_name"
@@ -53,7 +52,7 @@
                 android:textSize="@dimen/text_channel_name"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:ellipsize="end" />
+                android:ellipsize="end"/>
 
             <TextView
                 android:id="@+id/tv_group_name"
@@ -64,7 +63,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="@dimen/text_group_name"
                 android:maxLines="1"
-                android:ellipsize="end" />
+                android:ellipsize="end"/>
         </LinearLayout>
 
         <TextView
@@ -78,15 +77,14 @@
             android:background="@drawable/bg_badge"
             android:paddingHorizontal="10dp"
             android:paddingVertical="5dp"
-            android:layout_marginEnd="8dp" />
+            android:layout_marginEnd="10dp"/>
 
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_play_arrow"
-            android:tint="#33FFFFFF"
-            android:importantForAccessibility="no" />
+            android:tint="#44FFFFFF"
+            android:importantForAccessibility="no"/>
 
     </LinearLayout>
-
 </androidx.cardview.widget.CardView>

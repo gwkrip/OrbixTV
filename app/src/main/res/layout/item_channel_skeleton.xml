@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Skeleton phone — sinkron dengan layout/item_channel.xml -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="12dp"
-    android:layout_marginVertical="3dp"
+    android:layout_marginHorizontal="@dimen/channel_item_margin_h"
+    android:layout_marginVertical="@dimen/channel_item_margin_v"
     app:cardBackgroundColor="@color/bg_card"
-    app:cardCornerRadius="14dp"
+    app:cardCornerRadius="@dimen/channel_card_radius"
     app:cardElevation="0dp">
 
     <LinearLayout
@@ -15,15 +16,19 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
+        android:paddingStart="@dimen/channel_item_padding_h"
         android:paddingEnd="14dp"
-        android:paddingVertical="11dp">
+        android:paddingVertical="@dimen/channel_item_padding_v">
 
-        <!-- Logo circle placeholder -->
-        <View
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="@drawable/bg_skeleton_circle" />
+        <!-- Logo placeholder: ukuran & shape sama dengan iv_logo di phone item_channel -->
+        <FrameLayout
+            android:layout_width="@dimen/channel_logo_size"
+            android:layout_height="@dimen/channel_logo_size">
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_skeleton_circle"/>
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
@@ -33,23 +38,24 @@
             android:orientation="vertical">
 
             <View
-                android:layout_width="130dp"
+                android:layout_width="120dp"
                 android:layout_height="13dp"
-                android:background="@drawable/bg_skeleton" />
+                android:background="@drawable/bg_skeleton"/>
 
             <View
-                android:layout_width="75dp"
+                android:layout_width="70dp"
                 android:layout_height="10dp"
-                android:layout_marginTop="7dp"
+                android:layout_marginTop="6dp"
                 android:background="@drawable/bg_skeleton"
-                android:alpha="0.6" />
+                android:alpha="0.55"/>
         </LinearLayout>
 
+        <!-- Badge placeholder -->
         <View
             android:layout_width="32dp"
             android:layout_height="18dp"
             android:background="@drawable/bg_skeleton"
-            android:alpha="0.5" />
+            android:alpha="0.45"/>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>
