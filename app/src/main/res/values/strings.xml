@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GS-TV</string>
-    <string name="app_tagline">Geru Sugihmas</string>
+    <string name="app_name">OrbixTV</string>
+    <string name="app_tagline">Tonton Tanpa Batas</string>
     <string name="tab_home">Beranda</string>
     <string name="tab_favorites">Favorit</string>
     <string name="tab_recent">Terkini</string>
