@@ -206,7 +206,7 @@ class HomeFragment : Fragment() {
             settingsLauncher.launch(Intent(requireContext(), PlaylistSettingsActivity::class.java))
         }
 
-        binding.btnRefresh?.setOnClickListener {
+        binding.btnRefresh.setOnClickListener {
             if (viewModel.isLoading.value) return@setOnClickListener
             startRefreshAnimation()
             viewModel.loadPlaylist()
@@ -224,14 +224,14 @@ class HomeFragment : Fragment() {
             repeatCount = android.view.animation.Animation.INFINITE
             interpolator = LinearInterpolator()
         }
-        binding.btnRefresh?.startAnimation(spin)
+        binding.btnRefresh.startAnimation(spin)
     }
 
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
                 binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
-                if (!loading) binding.btnRefresh?.clearAnimation()
+                if (!loading) binding.btnRefresh.clearAnimation()
                 if (!isTvLayout) {
                     binding.rvGroups.visibility = if (loading) View.GONE else View.VISIBLE
                 }
