@@ -138,6 +138,7 @@ class RecentFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_MIME_TYPE_HINT, channel.mimeTypeHint)
+            putExtra(PlayerActivity.EXTRA_STREAM_TYPE, channel.streamType)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
         })
     }

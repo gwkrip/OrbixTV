@@ -60,6 +60,7 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_CHANNEL_ID     = "channel_id"
         const val EXTRA_CHANNEL_INDEX  = "channel_index"
         const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
+        const val EXTRA_STREAM_TYPE    = "stream_type"
         private const val TAG = "PlayerActivity"
 
         private const val BUFFERING_TIMEOUT_MS       = 12_000L
@@ -89,6 +90,7 @@ class PlayerActivity : AppCompatActivity() {
     private var referer      = ""
     private var channelId    = ""
     private var mimeTypeHint = ""
+    private var streamTypeHint = ""
 
     private var sleepTimer: CountDownTimer? = null
     private var sleepTimerMinutesLeft = 0
@@ -145,6 +147,7 @@ class PlayerActivity : AppCompatActivity() {
         referer      = intent.getStringExtra(EXTRA_REFERER)        ?: ""
         channelId    = intent.getStringExtra(EXTRA_CHANNEL_ID)     ?: ""
         mimeTypeHint = intent.getStringExtra(EXTRA_MIME_TYPE_HINT) ?: ""
+        streamTypeHint = intent.getStringExtra(EXTRA_STREAM_TYPE)  ?: ""
 
         val intentIndex = intent.getIntExtra(EXTRA_CHANNEL_INDEX, -1)
         allChannels = viewModel.getAllChannels()
@@ -179,10 +182,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resolveStreamType(): M3uParser.StreamType {
+        // Prioritas 1: gunakan streamType yang sudah dihitung parser (termasuk dari KODIPROP)
+        if (streamTypeHint.isNotEmpty()) {
+            when (streamTypeHint.uppercase()) {
+                "DASH" -> return M3uParser.StreamType.DASH
+                "HLS"  -> return M3uParser.StreamType.HLS
+                "RTMP" -> return M3uParser.StreamType.RTMP
+            }
+        }
+        // Prioritas 2: mimeTypeHint dari EXTINF type=""
         if (mimeTypeHint.isNotEmpty()) {
             val t = M3uParser.mimeStringToStreamType(mimeTypeHint)
             if (t != M3uParser.StreamType.PROGRESSIVE) return t
         }
+        // Fallback: deteksi dari URL
         return M3uParser.detectStreamType(channelUrl)
     }
 
@@ -660,6 +673,7 @@ class PlayerActivity : AppCompatActivity() {
         userAgent    = next.userAgent; licenseType = next.licenseType
         licenseKey   = next.licenseKey; referer  = next.referer
         channelId    = next.id;    mimeTypeHint = next.mimeTypeHint
+        streamTypeHint = next.streamType
         retryCount   = 0
 
         viewModel.onChannelWatched(channelId)

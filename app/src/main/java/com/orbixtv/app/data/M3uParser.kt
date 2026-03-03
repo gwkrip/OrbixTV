@@ -239,6 +239,9 @@ object M3uParser {
 
     fun mimeStringToStreamType(mime: String): StreamType {
         val lower = mime.lowercase().trim()
+        // Handle nilai mentah dari KODIPROP manifest_type
+        if (lower == "mpd" || lower == "dash") return StreamType.DASH
+        if (lower == "hls")                    return StreamType.HLS
         return MIME_TO_STREAM_TYPE.firstOrNull { (pattern, _) ->
             lower.contains(pattern)
         }?.second ?: detectStreamType(lower)
