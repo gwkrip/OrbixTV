@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TV Favorites: Grid 3 kolom, teks besar -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -11,32 +10,52 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- #12: Header dengan jumlah favorit -->
+        <!-- Header TV — konsisten -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginStart="32dp"
-            android:layout_marginEnd="32dp"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="12dp">
+            android:orientation="vertical"
+            android:background="@color/bg_surface">
 
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="❤ Favorit"
-                android:textColor="@color/white"
-                android:textSize="28sp"
-                android:fontFamily="sans-serif-black" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="28dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="16dp">
 
-            <TextView
-                android:id="@+id/tv_favorites_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/favorites_title"
+                        android:textColor="@color/white"
+                        android:textSize="@dimen/text_title"
+                        android:fontFamily="sans-serif-black" />
+
+                    <TextView
+                        android:id="@+id/tv_favorites_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/text_secondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
         </LinearLayout>
 
         <!-- Skeleton shimmer TV saat loading -->
@@ -44,7 +63,7 @@
             android:id="@+id/shimmer_favorites"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
             android:visibility="visible">
 
             <LinearLayout
@@ -68,7 +87,9 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
             android:clipToPadding="false"
+            android:scrollbars="none"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:descendantFocusability="afterDescendants"
@@ -76,37 +97,41 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Empty state TV -->
     <LinearLayout
         android:id="@+id/empty_state"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:paddingHorizontal="48dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="💔"
-            android:textSize="80sp" />
+            android:textSize="72sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Belum ada favorit"
+            android:layout_marginTop="20dp"
+            android:text="@string/favorites_empty_title"
             android:textColor="@color/text_secondary"
-            android:textSize="22sp"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Tekan tombol ♥ saat menonton untuk menambahkan"
+            android:text="@string/favorites_empty_hint"
             android:textColor="@color/text_hint"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:gravity="center"
+            android:lineSpacingMultiplier="1.4"
             android:paddingHorizontal="48dp" />
     </LinearLayout>
 

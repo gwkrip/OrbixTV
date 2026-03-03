@@ -174,9 +174,8 @@ class FavoritesFragment : Fragment() {
                 adapter.submitList(favs)
                 binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
 
-                binding.searchViewFavorites?.visibility =
+                binding.searchContainerFavorites?.visibility =
                     if (favs.size > 5) View.VISIBLE else View.GONE
-
                 val isEmpty = favs.isEmpty()
                 if (isEmpty && binding.rvFavorites.visibility == View.VISIBLE) {
                     binding.rvFavorites.animate().alpha(0f).setDuration(200)

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TV Recent: Grid 3 kolom, teks besar -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -11,45 +10,62 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- #4 + #12: Header dengan jumlah riwayat + tombol hapus -->
+        <!-- Header TV — konsisten -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginStart="32dp"
-            android:layout_marginEnd="32dp"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="12dp">
+            android:orientation="vertical"
+            android:background="@color/bg_surface">
 
-            <TextView
-                android:id="@+id/tv_recent_title"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🕐 Terakhir Ditonton"
-                android:textColor="@color/white"
-                android:textSize="28sp"
-                android:fontFamily="sans-serif-black" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="28dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="16dp">
 
-            <!-- #12: jumlah item -->
-            <TextView
-                android:id="@+id/tv_recent_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="14sp"
-                android:layout_marginEnd="8dp" />
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
 
-            <!-- #4: Tombol hapus riwayat -->
-            <ImageButton
-                android:id="@+id/btn_clear_history"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:src="@drawable/ic_close"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/text_secondary"
-                android:contentDescription="Hapus riwayat" />
+                    <TextView
+                        android:id="@+id/tv_recent_title"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/recent_title"
+                        android:textColor="@color/white"
+                        android:textSize="@dimen/text_title"
+                        android:fontFamily="sans-serif-black" />
+
+                    <TextView
+                        android:id="@+id/tv_recent_count"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="@dimen/text_secondary"
+                        android:layout_marginTop="2dp" />
+                </LinearLayout>
+
+                <ImageButton
+                    android:id="@+id/btn_clear_history"
+                    android:layout_width="@dimen/icon_btn_size"
+                    android:layout_height="@dimen/icon_btn_size"
+                    android:src="@drawable/ic_close"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/text_secondary"
+                    android:contentDescription="@string/clear_history"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/divider" />
+
         </LinearLayout>
 
         <!-- Skeleton shimmer TV saat loading -->
@@ -57,7 +73,7 @@
             android:id="@+id/shimmer_recent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="4dp"
             android:visibility="visible">
 
             <LinearLayout
@@ -80,7 +96,9 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:paddingHorizontal="16dp"
+            android:paddingTop="4dp"
             android:clipToPadding="false"
+            android:scrollbars="none"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:descendantFocusability="afterDescendants"
@@ -88,37 +106,41 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Empty state TV -->
     <LinearLayout
         android:id="@+id/empty_state"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:orientation="vertical"
-        android:gravity="center">
+        android:gravity="center"
+        android:paddingHorizontal="48dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📺"
-            android:textSize="80sp" />
+            android:textSize="72sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Belum ada riwayat"
+            android:layout_marginTop="20dp"
+            android:text="@string/recent_empty_title"
             android:textColor="@color/text_secondary"
-            android:textSize="22sp"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Mulai menonton saluran favoritmu"
+            android:text="@string/recent_empty_hint"
             android:textColor="@color/text_hint"
-            android:textSize="16sp"
-            android:gravity="center" />
+            android:textSize="15sp"
+            android:gravity="center"
+            android:lineSpacingMultiplier="1.4" />
     </LinearLayout>
 
 </FrameLayout>

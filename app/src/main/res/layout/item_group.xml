@@ -8,13 +8,13 @@
     <LinearLayout
         android:id="@+id/header_layout"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="@dimen/group_header_height"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="14dp"
-        android:paddingEnd="12dp"
+        android:paddingEnd="14dp"
         android:background="@drawable/bg_group_header_v2"
-        android:layout_marginHorizontal="12dp"
+        android:layout_marginHorizontal="@dimen/channel_item_margin_h"
         android:layout_marginTop="6dp"
         android:focusable="true"
         android:clickable="true">
@@ -27,9 +27,9 @@
             android:layout_weight="1"
             android:text="INDONESIA"
             android:textColor="@color/white"
-            android:textSize="13sp"
-            android:fontFamily="sans-serif-bold"
-            android:letterSpacing="0.04"
+            android:textSize="@dimen/text_group_name"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.01"
             android:maxLines="1"
             android:ellipsize="end" />
 
@@ -40,18 +40,17 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
             android:text="24"
-            android:textColor="@color/accent_blue"
+            android:textColor="@color/text_secondary"
             android:textSize="11sp"
-            android:fontFamily="sans-serif-medium"
             android:background="@drawable/bg_count_pill"
-            android:paddingHorizontal="9dp"
+            android:paddingHorizontal="8dp"
             android:paddingVertical="3dp" />
 
         <!-- Arrow expand/collapse -->
         <ImageView
             android:id="@+id/iv_arrow"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
             android:src="@drawable/ic_arrow_down"
             android:tint="@color/text_secondary"
             android:contentDescription="@string/expand_group" />
@@ -62,6 +61,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:visibility="gone"
-        android:nestedScrollingEnabled="false" />
+        android:nestedScrollingEnabled="false"
+        android:paddingTop="2dp" />
 
 </LinearLayout>

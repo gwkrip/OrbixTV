@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Skeleton untuk item_channel.xml — dimensi identik agar seamless saat swap -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -8,7 +7,7 @@
     android:layout_marginHorizontal="12dp"
     android:layout_marginVertical="3dp"
     app:cardBackgroundColor="@color/bg_card"
-    app:cardCornerRadius="12dp"
+    app:cardCornerRadius="14dp"
     app:cardElevation="0dp">
 
     <LinearLayout
@@ -18,15 +17,14 @@
         android:gravity="center_vertical"
         android:paddingStart="12dp"
         android:paddingEnd="14dp"
-        android:paddingVertical="10dp">
+        android:paddingVertical="11dp">
 
-        <!-- Logo circle placeholder (48×48dp seperti aslinya) -->
+        <!-- Logo circle placeholder -->
         <View
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/bg_skeleton_circle" />
 
-        <!-- Teks placeholder -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -34,13 +32,11 @@
             android:layout_marginStart="12dp"
             android:orientation="vertical">
 
-            <!-- Channel name placeholder (lebar bervariasi per baris agar natural) -->
             <View
                 android:layout_width="130dp"
                 android:layout_height="13dp"
                 android:background="@drawable/bg_skeleton" />
 
-            <!-- Group name placeholder -->
             <View
                 android:layout_width="75dp"
                 android:layout_height="10dp"
@@ -49,7 +45,6 @@
                 android:alpha="0.6" />
         </LinearLayout>
 
-        <!-- Stream badge placeholder -->
         <View
             android:layout_width="32dp"
             android:layout_height="18dp"

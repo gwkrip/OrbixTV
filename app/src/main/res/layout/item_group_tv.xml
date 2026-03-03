@@ -3,14 +3,17 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="56dp"
+    android:layout_height="@dimen/group_header_height"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingHorizontal="20dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="14dp"
+    android:layout_marginHorizontal="6dp"
+    android:layout_marginVertical="2dp"
     android:focusable="true"
     android:clickable="true"
     android:defaultFocusHighlightEnabled="false"
-    android:background="?attr/selectableItemBackground">
+    android:background="@drawable/selector_tv_group_focus">
 
     <TextView
         android:id="@+id/tv_group_name"
@@ -19,7 +22,7 @@
         android:layout_weight="1"
         android:text="🇮🇩 INDONESIA"
         android:textColor="@color/white"
-        android:textSize="15sp"
+        android:textSize="@dimen/text_group_name"
         android:fontFamily="sans-serif-medium"
         android:maxLines="1"
         android:ellipsize="end" />
@@ -29,8 +32,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="24"
-        android:textColor="@color/accent_blue"
-        android:textSize="13sp"
-        android:fontFamily="sans-serif-medium" />
+        android:textColor="@color/text_secondary"
+        android:textSize="11sp"
+        android:background="@drawable/bg_count_pill"
+        android:paddingHorizontal="7dp"
+        android:paddingVertical="3dp" />
 
 </LinearLayout>

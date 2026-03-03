@@ -1,27 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Background colors -->
-    <color name="bg_dark">#0F0F13</color>
-    <color name="bg_surface">#1A1A22</color>
-    <color name="bg_card">#222230</color>
+    <!-- Background hierarchy -->
+    <color name="bg_dark">#0D0D12</color>
+    <color name="bg_surface">#16161F</color>
+    <color name="bg_card">#1E1E2C</color>
+    <color name="bg_card_elevated">#26263A</color>
     <color name="bg_logo">#2A2A3A</color>
 
     <!-- Accent -->
     <color name="accent_blue">#4D9EFF</color>
     <color name="accent_blue_dark">#2D7DD9</color>
+    <color name="accent_blue_dim">#1A3A5C</color>
     <color name="accent_red">#FF4444</color>
+    <color name="accent_green">#44CC77</color>
 
     <!-- Text -->
     <color name="white">#FFFFFF</color>
-    <color name="text_secondary">#99AABB</color>
-    <color name="text_hint">#556677</color>
+    <color name="text_secondary">#8899AA</color>
+    <color name="text_hint">#445566</color>
+
+    <!-- Divider -->
+    <color name="divider">#1E2A38</color>
+    <color name="divider_strong">#2A3A4A</color>
 
     <!-- Nav -->
     <color name="nav_selected">#4D9EFF</color>
-    <color name="nav_unselected">#556677</color>
+    <color name="nav_unselected">#445566</color>
+
+    <!-- Stream badge colors -->
+    <color name="badge_hls">#4D9EFF</color>
+    <color name="badge_dash">#AA77FF</color>
+    <color name="badge_rtmp">#FF7744</color>
+    <color name="badge_progressive">#44CC77</color>
 
     <!-- System -->
     <color name="colorPrimary">#4D9EFF</color>
-    <color name="colorPrimaryDark">#0F0F13</color>
+    <color name="colorPrimaryDark">#0D0D12</color>
     <color name="colorAccent">#4D9EFF</color>
 </resources>

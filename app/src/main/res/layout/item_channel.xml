@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- item_channel.xml — shared phone + TV -->
 <androidx.cardview.widget.CardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="12dp"
-    android:layout_marginVertical="3dp"
+    android:layout_marginHorizontal="@dimen/channel_item_margin_h"
+    android:layout_marginVertical="@dimen/channel_item_margin_v"
     android:focusable="true"
     android:clickable="true"
     android:defaultFocusHighlightEnabled="false"
     app:cardBackgroundColor="@color/bg_card"
-    app:cardCornerRadius="12dp"
+    app:cardCornerRadius="@dimen/channel_card_radius"
     app:cardElevation="0dp">
 
     <LinearLayout
@@ -19,14 +18,14 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
+        android:paddingStart="@dimen/channel_item_padding_h"
         android:paddingEnd="14dp"
-        android:paddingVertical="10dp">
+        android:paddingVertical="@dimen/channel_item_padding_v">
 
         <!-- Logo dengan status dot overlay -->
         <FrameLayout
-            android:layout_width="48dp"
-            android:layout_height="48dp">
+            android:layout_width="@dimen/channel_logo_size"
+            android:layout_height="@dimen/channel_logo_size">
 
             <ImageView
                 android:id="@+id/iv_logo"
@@ -35,12 +34,12 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_tv_placeholder"
                 android:background="@drawable/bg_logo_circle"
-                android:padding="7dp" />
+                android:padding="8dp" />
 
             <View
                 android:id="@+id/v_status_dot"
-                android:layout_width="9dp"
-                android:layout_height="9dp"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
                 android:layout_gravity="bottom|end"
                 android:layout_margin="1dp"
                 android:background="@drawable/bg_status_dot" />
@@ -60,7 +59,7 @@
                 android:layout_height="wrap_content"
                 android:text="Channel Name"
                 android:textColor="@color/white"
-                android:textSize="14sp"
+                android:textSize="@dimen/text_channel_name"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:ellipsize="end" />
@@ -84,21 +83,12 @@
             android:layout_height="wrap_content"
             android:text="HLS"
             android:textColor="@color/accent_blue"
-            android:textSize="10sp"
+            android:textSize="@dimen/text_badge"
             android:fontFamily="sans-serif-medium"
             android:background="@drawable/bg_badge_hls"
             android:paddingHorizontal="7dp"
             android:paddingVertical="4dp"
             android:letterSpacing="0.04" />
-
-        <!-- Play chevron -->
-        <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginStart="10dp"
-            android:src="@drawable/ic_play_arrow"
-            android:tint="#44FFFFFF"
-            android:importantForAccessibility="no" />
 
     </LinearLayout>
 
