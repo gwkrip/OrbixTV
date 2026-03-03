@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.facebook.shimmer.ShimmerDrawable
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
@@ -32,6 +33,21 @@ private val pingHttpClient = okhttp3.OkHttpClient.Builder()
     .followRedirects(true)
     .followSslRedirects(true)
     .build()
+
+/** ShimmerDrawable sekali buat, dipakai sebagai placeholder logo di semua item */
+private val shimmerPlaceholder: ShimmerDrawable by lazy {
+    ShimmerDrawable().apply {
+        setShimmer(
+            com.facebook.shimmer.Shimmer.AlphaHighlightBuilder()
+                .setDuration(1200)
+                .setBaseAlpha(0.3f)
+                .setHighlightAlpha(0.6f)
+                .setDirection(com.facebook.shimmer.Shimmer.Direction.LEFT_TO_RIGHT)
+                .setAutoStart(true)
+                .build()
+        )
+    }
+}
 
 class ChannelAdapter(
     private val lifecycleOwner: LifecycleOwner,
@@ -81,7 +97,7 @@ class ChannelAdapter(
                     .load(channel.logoUrl)
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .transition(DrawableTransitionOptions.withCrossFade(200))
-                    .placeholder(R.drawable.ic_tv_placeholder)
+                    .placeholder(shimmerPlaceholder)
                     .error(R.drawable.ic_tv_placeholder)
                     .into(binding.ivLogo)
             } else {

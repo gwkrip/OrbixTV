@@ -44,6 +44,7 @@ import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.data.M3uParser.StreamType
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
+import com.facebook.shimmer.ShimmerFrameLayout
 
 @UnstableApi
 class PlayerActivity : AppCompatActivity() {
@@ -589,7 +590,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showLoading(show: Boolean) {
-        binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
+        if (show) {
+            binding.shimmerPlayer.visibility = View.VISIBLE
+            binding.shimmerPlayer.startShimmer()
+        } else {
+            binding.shimmerPlayer.stopShimmer()
+            binding.shimmerPlayer.animate()
+                .alpha(0f)
+                .setDuration(300)
+                .withEndAction {
+                    binding.shimmerPlayer.visibility = View.GONE
+                    binding.shimmerPlayer.alpha = 1f
+                }.start()
+        }
     }
 
     private fun showError(message: String?) {

@@ -45,6 +45,7 @@ class HomeFragment : Fragment() {
     private var isSearchActive = false
     private var isTvLayout = false
     private var searchDebounceJob: Job? = null
+    private var shimmerSearch: com.facebook.shimmer.ShimmerFrameLayout? = null
 
     // Launcher untuk PlaylistSettingsActivity — reload playlist jika ada perubahan
     private val settingsLauncher = registerForActivityResult(
@@ -66,6 +67,7 @@ class HomeFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         isTvLayout = binding.root.findViewById<View?>(R.id.empty_panel) != null
+        shimmerSearch = binding.root.findViewById(R.id.shimmer_search)
 
         if (isTvLayout) setupTvAdapters() else setupPhoneAdapters()
 
@@ -178,14 +180,26 @@ class HomeFragment : Fragment() {
 
                 if (isTvLayout) {
                     if (isSearchActive) {
-                        binding.rvSearch.visibility = View.VISIBLE
+                        binding.rvSearch.visibility = View.GONE
+                        shimmerSearch?.visibility = View.VISIBLE
+                        shimmerSearch?.startShimmer()
                         binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
+                    } else {
+                        shimmerSearch?.stopShimmer()
+                        shimmerSearch?.visibility = View.GONE
                     }
                 } else {
                     if (isSearchActive) {
                         binding.searchPanel?.visibility = View.VISIBLE
                         binding.rvGroups.visibility = View.GONE
+                        // Tampilkan skeleton, sembunyikan hasil lama
+                        binding.rvSearch.visibility = View.GONE
+                        shimmerSearch?.visibility = View.VISIBLE
+                        shimmerSearch?.startShimmer()
+                        binding.tvSearchCount.visibility = View.GONE
                     } else {
+                        shimmerSearch?.stopShimmer()
+                        shimmerSearch?.visibility = View.GONE
                         binding.searchPanel?.visibility = View.GONE
                         binding.rvGroups.visibility = View.VISIBLE
                         binding.tvSearchCount.visibility = View.GONE
@@ -195,6 +209,10 @@ class HomeFragment : Fragment() {
                 searchDebounceJob?.cancel()
                 searchDebounceJob = viewLifecycleOwner.lifecycleScope.launch {
                     delay(300)
+                    // Stop skeleton dan tampilkan hasil
+                    shimmerSearch?.stopShimmer()
+                    shimmerSearch?.visibility = View.GONE
+                    if (isSearchActive) binding.rvSearch.visibility = View.VISIBLE
                     viewModel.search(query)
                 }
                 return true
