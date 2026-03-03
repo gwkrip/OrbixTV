@@ -46,8 +46,6 @@ class ChannelRepository private constructor(private val context: Context) {
     private var cachedAllChannels: List<Channel> = emptyList()
     private var channelById: Map<String, Channel> = emptyMap()
 
-    @Volatile private var isPlaylistLoaded = false
-
     private val favoritesMutex = Mutex()
     private var cachedFavoriteIds: Set<String> = emptySet()
     private var isFavoritesLoaded = false
@@ -62,40 +60,27 @@ class ChannelRepository private constructor(private val context: Context) {
     fun isUsingDefaultUrl(): Boolean = prefs.getString("playlist_url", null).isNullOrBlank()
 
     fun savePlaylistUrl(url: String) {
-        isPlaylistLoaded = false
         prefs.edit().putString("playlist_url", url.trim()).apply()
     }
 
     /** Reset ke URL default (hapus URL kustom user) */
     fun resetToDefaultUrl() {
-        isPlaylistLoaded = false
         prefs.edit().remove("playlist_url").apply()
     }
 
-    @Deprecated("Gunakan resetToDefaultUrl()", ReplaceWith("resetToDefaultUrl()"))
-    fun clearPlaylistUrl() = resetToDefaultUrl()
-
     suspend fun loadPlaylist(): String? {
-        if (isPlaylistLoaded && cachedAllChannels.isNotEmpty()) return null
-
-        val url = getPlaylistUrl() // selalu ada URL (default atau kustom)
+        val url = getPlaylistUrl()
         val result = M3uParser.parseFromUrl(url)
         return if (result.isSuccess) {
             applyGroups(result.getOrNull() ?: emptyList())
-            isPlaylistLoaded = true
             null
         } else {
-            // Fallback ke assets hanya jika URL default pun gagal
             loadFromAssets()
-            isPlaylistLoaded = true
             "Gagal memuat dari URL ($url): ${result.exceptionOrNull()?.message ?: "Error tidak diketahui"}"
         }
     }
 
-    suspend fun reloadPlaylist(): String? {
-        isPlaylistLoaded = false
-        return loadPlaylist()
-    }
+    suspend fun reloadPlaylist(): String? = loadPlaylist()
 
     suspend fun isPlaylistUrlReachable(): Boolean = withContext(Dispatchers.IO) {
         val url = getPlaylistUrl().ifEmpty { return@withContext true }

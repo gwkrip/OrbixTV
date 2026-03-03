@@ -94,12 +94,10 @@ class ChannelAdapter(
             binding.root.setOnFocusChangeListener { _, hasFocus ->
                 val scale = if (hasFocus) 1.05f else 1f
                 binding.root.animate().scaleX(scale).scaleY(scale).setDuration(150).start()
-                cardView?.let { cv ->
-                    cv.setCardBackgroundColor(
-                        cv.context.getColor(if (hasFocus) R.color.bg_surface else R.color.bg_card)
-                    )
-                    cv.cardElevation = if (hasFocus) 8f else 0f
-                }
+                cardView.setCardBackgroundColor(
+                    cardView.context.getColor(if (hasFocus) R.color.bg_surface else R.color.bg_card)
+                )
+                cardView.cardElevation = if (hasFocus) 8f else 0f
             }
 
             updateStatusDot(getCachedPingStatus(channel.id))

@@ -35,21 +35,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _streamFilter = MutableStateFlow(StreamFilter.ALL)
     val streamFilter: StateFlow<StreamFilter> = _streamFilter
 
-    init {
-        initialLoad()
-    }
+    init { loadPlaylist() }
 
-    /** Pertama kali buka app — selalu download ulang dari URL */
-    private fun initialLoad() {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _loadError.value = null
-            _loadError.value = repository.reloadPlaylist()
-            _isLoading.value = false
-        }
-    }
-
-    /** Force reload — selalu ambil ulang dari URL (dipanggil setelah URL diubah) */
+    /** Force reload dari URL — dipanggil saat app buka atau URL berubah */
     fun loadPlaylist() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -61,33 +49,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getPlaylistUrl(): String = repository.getPlaylistUrl()
     fun isUsingDefaultUrl(): Boolean = repository.isUsingDefaultUrl()
-    fun getDefaultPlaylistUrl(): String = com.orbixtv.app.data.ChannelRepository.DEFAULT_PLAYLIST_URL
+    fun getDefaultPlaylistUrl(): String = ChannelRepository.DEFAULT_PLAYLIST_URL
 
-    /** Simpan URL saja tanpa reload — reload dipicu oleh caller (HomeFragment via settingsLauncher) */
     fun saveUrl(url: String) = repository.savePlaylistUrl(url)
-
-    /** Reset ke URL default tanpa reload */
     fun resetUrl() = repository.resetToDefaultUrl()
-
-    fun setPlaylistUrl(url: String) {
-        repository.savePlaylistUrl(url)
-        viewModelScope.launch {
-            _isLoading.value = true
-            _loadError.value = null
-            _loadError.value = repository.reloadPlaylist()
-            _isLoading.value = false
-        }
-    }
-
-    fun resetToDefaultPlaylist() {
-        repository.resetToDefaultUrl()
-        viewModelScope.launch {
-            _isLoading.value = true
-            _loadError.value = null
-            _loadError.value = repository.reloadPlaylist()
-            _isLoading.value = false
-        }
-    }
 
     fun search(query: String) {
         _searchResults.value = if (query.isBlank()) emptyList()

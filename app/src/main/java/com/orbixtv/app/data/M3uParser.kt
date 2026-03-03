@@ -116,35 +116,8 @@ object M3uParser {
         return groupChannels(channels)
     }
 
-    fun parseContent(content: String): List<ChannelGroup> {
-        val channels = mutableListOf<Channel>()
-        var pendingExtInf: String? = null
-        val pendingKodiProps = mutableMapOf<String, String>()
-        content.lineSequence().forEach { rawLine ->
-            val trimmed = rawLine.trim()
-            when {
-                trimmed.startsWith("#EXTINF:") -> {
-                    pendingExtInf = trimmed
-                    pendingKodiProps.clear()
-                }
-                trimmed.startsWith("#KODIPROP:") && pendingExtInf != null -> {
-                    val prop  = trimmed.removePrefix("#KODIPROP:")
-                    val key   = prop.substringBefore("=").trim()
-                    val value = prop.substringAfter("=", "").trim()
-                    if (key.isNotEmpty() && value.isNotEmpty()) {
-                        val existing = pendingKodiProps[key]
-                        pendingKodiProps[key] = if (existing != null) "$existing&$value" else value
-                    }
-                }
-                trimmed.isNotEmpty() && !trimmed.startsWith("#") && pendingExtInf != null -> {
-                    parseChannel(pendingExtInf!!, trimmed, pendingKodiProps)?.let { channels.add(it) }
-                    pendingExtInf = null
-                    pendingKodiProps.clear()
-                }
-            }
-        }
-        return groupChannels(channels)
-    }
+    fun parseContent(content: String): List<ChannelGroup> =
+        parseFromReader(BufferedReader(java.io.StringReader(content)))
 
     private fun groupChannels(channels: List<Channel>): List<ChannelGroup> {
         return channels.groupBy { it.group }.map { (group, channelList) ->

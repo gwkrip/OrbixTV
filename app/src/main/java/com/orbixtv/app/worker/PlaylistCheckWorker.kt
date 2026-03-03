@@ -26,11 +26,9 @@ class PlaylistCheckWorker(
 
     override suspend fun doWork(): Result {
         val repo = ChannelRepository.getInstance(applicationContext)
-        if (repo.getPlaylistUrl().isEmpty()) return Result.success()
-
+        // URL selalu ada (default atau kustom) — langsung cek reachability
         val reachable = repo.isPlaylistUrlReachable()
         if (!reachable) sendNotification()
-
         return Result.success()
     }
 
