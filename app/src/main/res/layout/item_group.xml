@@ -11,22 +11,15 @@
         android:layout_height="@dimen/group_header_height"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingEnd="16dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
         android:background="@drawable/bg_group_header_v2"
         android:layout_marginHorizontal="@dimen/channel_item_margin_h"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:focusable="true"
         android:clickable="true">
 
-        <!-- Left accent bar -->
-        <View
-            android:layout_width="3dp"
-            android:layout_height="24dp"
-            android:background="@drawable/bg_nav_indicator"
-            android:layout_marginStart="14dp"
-            android:layout_marginEnd="12dp" />
-
-        <!-- Group name -->
+        <!-- Nama grup -->
         <TextView
             android:id="@+id/tv_group_name"
             android:layout_width="0dp"
@@ -36,29 +29,28 @@
             android:textColor="@color/white"
             android:textSize="@dimen/text_group_name"
             android:fontFamily="sans-serif-medium"
-            android:letterSpacing="0.04"
+            android:letterSpacing="0.01"
             android:maxLines="1"
-            android:ellipsize="end"
-            android:textAllCaps="true" />
+            android:ellipsize="end" />
 
         <!-- Channel count pill -->
         <TextView
             android:id="@+id/tv_channel_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
+            android:layout_marginEnd="10dp"
             android:text="24"
             android:textColor="@color/text_secondary"
             android:textSize="11sp"
             android:background="@drawable/bg_count_pill"
-            android:paddingHorizontal="9dp"
+            android:paddingHorizontal="8dp"
             android:paddingVertical="3dp" />
 
         <!-- Arrow expand/collapse -->
         <ImageView
             android:id="@+id/iv_arrow"
-            android:layout_width="15dp"
-            android:layout_height="15dp"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
             android:src="@drawable/ic_arrow_down"
             android:tint="@color/text_secondary"
             android:contentDescription="@string/expand_group" />

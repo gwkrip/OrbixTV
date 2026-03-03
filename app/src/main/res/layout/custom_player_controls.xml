@@ -8,65 +8,65 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="88dp"
+        android:layout_height="80dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="@drawable/bg_player_controls_bar"
-        android:paddingHorizontal="24dp"
-        android:paddingBottom="12dp">
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="8dp">
 
-        <!-- Previous channel -->
+        <!-- Saluran sebelumnya -->
         <ImageButton
             android:id="@+id/btn_prev_channel"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:layout_marginEnd="10dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_arrow_back"
             android:tint="#CCFFFFFF"
             android:contentDescription="@string/prev_channel" />
 
-        <!-- Play / Pause -->
+        <!-- Play / Pause — sedikit lebih besar dengan latar lingkaran -->
         <ImageButton
             android:id="@id/exo_play_pause"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:background="@drawable/bg_play_button"
             android:src="@drawable/ic_play_arrow"
             android:tint="@color/white"
-            android:padding="14dp" />
+            android:padding="12dp" />
 
-        <!-- Next channel -->
+        <!-- Saluran berikutnya -->
         <ImageButton
             android:id="@+id/btn_next_channel"
-            android:layout_width="42dp"
-            android:layout_height="42dp"
-            android:layout_marginStart="10dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_arrow_down"
             android:rotation="-90"
             android:tint="#CCFFFFFF"
             android:contentDescription="@string/next_channel" />
 
-        <!-- LIVE badge -->
+        <!-- LIVE badge — styled dengan border merah -->
         <TextView
             android:id="@+id/tv_live_badge"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="14dp"
             android:text="● LIVE"
-            android:textColor="#FF4757"
-            android:textSize="11sp"
+            android:textColor="#FF5555"
+            android:textSize="12sp"
             android:fontFamily="sans-serif-bold"
             android:background="@drawable/bg_live_badge"
-            android:paddingHorizontal="9dp"
+            android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
             android:gravity="center"
             android:maxWidth="72dp"
-            android:letterSpacing="0.06"
             android:visibility="gone" />
 
+        <!-- Spacer saat LIVE hidden -->
         <View
             android:layout_width="0dp"
             android:layout_height="1dp"
@@ -74,8 +74,8 @@
 
         <ImageButton
             android:id="@id/exo_fullscreen"
-            android:layout_width="38dp"
-            android:layout_height="38dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_fullscreen"
             android:tint="#CCFFFFFF" />

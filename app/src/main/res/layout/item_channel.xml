@@ -22,7 +22,7 @@
         android:paddingEnd="14dp"
         android:paddingVertical="@dimen/channel_item_padding_v">
 
-        <!-- Logo container with status indicator -->
+        <!-- Logo dengan status dot overlay -->
         <FrameLayout
             android:layout_width="@dimen/channel_logo_size"
             android:layout_height="@dimen/channel_logo_size">
@@ -34,23 +34,23 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_tv_placeholder"
                 android:background="@drawable/bg_logo_circle"
-                android:padding="9dp" />
+                android:padding="8dp" />
 
             <View
                 android:id="@+id/v_status_dot"
-                android:layout_width="9dp"
-                android:layout_height="9dp"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
                 android:layout_gravity="bottom|end"
                 android:layout_margin="1dp"
                 android:background="@drawable/bg_status_dot" />
         </FrameLayout>
 
-        <!-- Channel name & group -->
+        <!-- Nama & Grup -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="12dp"
             android:orientation="vertical">
 
             <TextView
@@ -62,8 +62,7 @@
                 android:textSize="@dimen/text_channel_name"
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
-                android:ellipsize="end"
-                android:letterSpacing="-0.01" />
+                android:ellipsize="end" />
 
             <TextView
                 android:id="@+id/tv_group_name"
@@ -74,8 +73,7 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="11sp"
                 android:maxLines="1"
-                android:ellipsize="end"
-                android:letterSpacing="0.01" />
+                android:ellipsize="end" />
         </LinearLayout>
 
         <!-- Stream type badge -->
@@ -88,9 +86,9 @@
             android:textSize="@dimen/text_badge"
             android:fontFamily="sans-serif-medium"
             android:background="@drawable/bg_badge_hls"
-            android:paddingHorizontal="8dp"
+            android:paddingHorizontal="7dp"
             android:paddingVertical="4dp"
-            android:letterSpacing="0.06" />
+            android:letterSpacing="0.04" />
 
     </LinearLayout>
 

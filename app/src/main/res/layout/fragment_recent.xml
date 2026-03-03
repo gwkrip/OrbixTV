@@ -10,7 +10,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header -->
+        <!-- Header — konsisten dengan HomeFragment & Favorites -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,8 +23,8 @@
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:paddingHorizontal="@dimen/content_padding"
-                android:paddingTop="16dp"
-                android:paddingBottom="14dp">
+                android:paddingTop="14dp"
+                android:paddingBottom="12dp">
 
                 <LinearLayout
                     android:layout_width="0dp"
@@ -38,9 +38,8 @@
                         android:layout_height="wrap_content"
                         android:text="@string/recent_title"
                         android:textColor="@color/white"
-                        android:textSize="24sp"
-                        android:fontFamily="sans-serif-black"
-                        android:letterSpacing="-0.02" />
+                        android:textSize="@dimen/text_title"
+                        android:fontFamily="sans-serif-black" />
 
                     <TextView
                         android:id="@+id/tv_recent_count"
@@ -48,7 +47,7 @@
                         android:layout_height="wrap_content"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp"
-                        android:layout_marginTop="2dp" />
+                        android:layout_marginTop="1dp" />
                 </LinearLayout>
 
                 <ImageButton
@@ -69,12 +68,12 @@
 
         </LinearLayout>
 
-        <!-- Skeleton shimmer -->
+        <!-- Skeleton shimmer saat loading -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/shimmer_recent"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:visibility="visible">
 
             <LinearLayout
@@ -98,8 +97,8 @@
             android:layout_weight="1"
             android:scrollbars="none"
             android:clipToPadding="false"
-            android:paddingTop="6dp"
-            android:paddingBottom="80dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="72dp"
             android:visibility="gone" />
     </LinearLayout>
 
@@ -111,34 +110,33 @@
         android:layout_gravity="center"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingHorizontal="40dp">
+        android:paddingHorizontal="32dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📺"
-            android:textSize="56sp" />
+            android:textSize="52sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             android:text="@string/recent_empty_title"
-            android:textColor="@color/white"
-            android:textSize="18sp"
+            android:textColor="@color/text_secondary"
+            android:textSize="16sp"
             android:fontFamily="sans-serif-medium"
-            android:gravity="center"
-            android:letterSpacing="-0.01" />
+            android:gravity="center" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:text="@string/recent_empty_hint"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/text_hint"
             android:textSize="13sp"
             android:gravity="center"
-            android:lineSpacingMultiplier="1.5" />
+            android:lineSpacingMultiplier="1.4" />
     </LinearLayout>
 
 </FrameLayout>

@@ -1,241 +1,264 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
     android:background="@color/bg_dark">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <!-- Top AppBar — warna sama dengan phone -->
+    <LinearLayout
         android:id="@+id/app_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/bg_surface"
-        app:elevation="0dp">
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="20dp"
+        android:background="@color/bg_surface">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <TextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="@dimen/content_padding"
-            android:paddingTop="16dp"
-            android:paddingBottom="14dp">
+            android:text="OrbixTV"
+            android:textColor="@color/white"
+            android:textSize="@dimen/text_title"
+            android:fontFamily="sans-serif-black"
+            android:layout_marginEnd="20dp"/>
 
-            <!-- Top row: logo area + app name + actions -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="14dp">
+        <!-- Search bar — sama style dengan phone -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_search_v2"
+            android:paddingHorizontal="12dp">
 
-                <!-- App branding block -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_search"
+                android:tint="@color/text_secondary"
+                android:importantForAccessibility="no"/>
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/app_name"
-                        android:textColor="@color/white"
-                        android:textSize="24sp"
-                        android:fontFamily="sans-serif-black"
-                        android:letterSpacing="-0.02" />
-
-                    <TextView
-                        android:id="@+id/tv_channel_count"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/loading"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp"
-                        android:layout_marginTop="2dp"
-                        android:letterSpacing="0.01" />
-                </LinearLayout>
-
-                <!-- Action buttons -->
-                <ImageButton
-                    android:id="@+id/btn_refresh"
-                    android:layout_width="@dimen/touch_target"
-                    android:layout_height="@dimen/touch_target"
-                    android:src="@drawable/ic_refresh"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/text_secondary"
-                    android:contentDescription="Refresh playlist" />
-
-                <ImageButton
-                    android:id="@+id/btn_sort_filter"
-                    android:layout_width="@dimen/touch_target"
-                    android:layout_height="@dimen/touch_target"
-                    android:src="@drawable/ic_arrow_down"
-                    android:rotation="-90"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/text_secondary"
-                    android:contentDescription="@string/sort_filter_title" />
-
-                <ImageButton
-                    android:id="@+id/btn_settings"
-                    android:layout_width="@dimen/touch_target"
-                    android:layout_height="@dimen/touch_target"
-                    android:src="@drawable/ic_settings"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/text_secondary"
-                    android:contentDescription="@string/settings_description" />
-
-            </LinearLayout>
-
-            <!-- Playlist warning banner -->
-            <TextView
-                android:id="@+id/tv_playlist_warning"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:padding="12dp"
-                android:text="@string/playlist_warning"
-                android:textColor="#FFAA44"
-                android:textSize="12sp"
-                android:lineSpacingMultiplier="1.4"
-                android:background="@drawable/bg_warning_banner"
-                android:visibility="gone" />
-
-            <!-- Search bar — pill style -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="46dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/bg_search_v2"
-                android:paddingHorizontal="14dp">
-
-                <ImageView
-                    android:layout_width="17dp"
-                    android:layout_height="17dp"
-                    android:src="@drawable/ic_search"
-                    android:tint="@color/text_secondary"
-                    android:importantForAccessibility="no" />
-
-                <androidx.appcompat.widget.SearchView
-                    android:id="@+id/search_view"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:layout_marginStart="6dp"
-                    app:iconifiedByDefault="false"
-                    app:queryHint="@string/search_hint"
-                    app:searchIcon="@null"
-                    app:queryBackground="@android:color/transparent"
-                    app:closeIcon="@drawable/ic_close"
-                    android:background="@android:color/transparent" />
-
-            </LinearLayout>
-
+            <androidx.appcompat.widget.SearchView
+                android:id="@+id/search_view"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                app:iconifiedByDefault="false"
+                app:queryHint="@string/search_hint_tv"
+                app:searchIcon="@null"
+                android:background="@android:color/transparent"
+                app:queryBackground="@android:color/transparent"
+                app:closeIcon="@drawable/ic_close"
+                android:focusable="true"
+                android:nextFocusDown="@id/rv_groups"/>
         </LinearLayout>
 
-        <!-- Gradient bottom edge -->
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="@color/divider" />
+        <TextView
+            android:id="@+id/tv_channel_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/loading"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="4dp"/>
 
-    </com.google.android.material.appbar.AppBarLayout>
+        <ImageButton
+            android:id="@+id/btn_refresh"
+            android:layout_width="@dimen/icon_btn_size"
+            android:layout_height="@dimen/icon_btn_size"
+            android:src="@drawable/ic_refresh"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="@color/text_secondary"
+            android:contentDescription="Refresh playlist"
+            android:focusable="true"/>
 
-    <FrameLayout
+        <ImageButton
+            android:id="@+id/btn_settings"
+            android:layout_width="@dimen/icon_btn_size"
+            android:layout_height="@dimen/icon_btn_size"
+            android:src="@drawable/ic_settings"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:tint="@color/text_secondary"
+            android:contentDescription="@string/settings_description"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <!-- Divider bawah AppBar -->
+    <View
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:layout_height="1dp"
+        android:background="@color/divider"/>
 
-        <!-- Skeleton shimmer -->
-        <com.facebook.shimmer.ShimmerFrameLayout
-            android:id="@+id/shimmer_home"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="visible">
+    <!-- Warning banner -->
+    <TextView
+        android:id="@+id/tv_playlist_warning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:text="@string/playlist_warning_tv"
+        android:textColor="#FFAA44"
+        android:textSize="13sp"
+        android:background="@drawable/bg_warning_banner"
+        android:visibility="gone"/>
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="8dp">
+    <!-- Konten utama 2-panel -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
 
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-                <include layout="@layout/item_group_skeleton" />
-
-            </LinearLayout>
-        </com.facebook.shimmer.ShimmerFrameLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_groups"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:scrollbars="none"
-            android:clipToPadding="false"
-            android:paddingTop="6dp"
-            android:paddingBottom="80dp"
-            android:visibility="gone" />
-
-        <!-- Marker view: dipakai HomeFragment untuk mendeteksi layout tablet/TV -->
-        <View
-            android:id="@+id/empty_panel"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone" />
-
-        <!-- Search results panel -->
+        <!-- Panel kiri: Daftar Grup — bg_surface sama dengan phone appbar -->
         <LinearLayout
-            android:id="@+id/search_panel"
-            android:layout_width="match_parent"
+            android:layout_width="256dp"
             android:layout_height="match_parent"
             android:orientation="vertical"
-            android:visibility="gone">
+            android:background="@color/bg_surface">
 
             <TextView
-                android:id="@+id/tv_search_count"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/content_padding"
-                android:layout_marginTop="14dp"
-                android:layout_marginBottom="6dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:letterSpacing="0.02" />
-
-            <com.facebook.shimmer.ShimmerFrameLayout
-                android:id="@+id/shimmer_search"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:visibility="gone">
+                android:text="KATEGORI"
+                android:textColor="@color/text_hint"
+                android:textSize="10sp"
+                android:letterSpacing="0.15"
+                android:fontFamily="sans-serif-medium"
+                android:paddingHorizontal="18dp"
+                android:paddingTop="14dp"
+                android:paddingBottom="6dp"/>
+
+            <!-- Skeleton panel kiri — pakai item_group_skeleton yang benar -->
+            <com.facebook.shimmer.ShimmerFrameLayout
+                android:id="@+id/shimmer_home"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="visible">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:paddingTop="4dp">
+                    android:paddingTop="2dp">
 
-                    <include layout="@layout/item_channel_skeleton" />
-                    <include layout="@layout/item_channel_skeleton" />
-                    <include layout="@layout/item_channel_skeleton" />
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
+                    <include layout="@layout/item_group_skeleton"/>
 
                 </LinearLayout>
             </com.facebook.shimmer.ShimmerFrameLayout>
 
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_search"
+                android:id="@+id/rv_groups"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
                 android:scrollbars="none"
                 android:clipToPadding="false"
-                android:paddingBottom="80dp" />
+                android:paddingVertical="6dp"
+                android:focusable="true"
+                android:descendantFocusability="afterDescendants"
+                android:nextFocusRight="@id/rv_search"
+                android:visibility="gone"/>
         </LinearLayout>
 
-    </FrameLayout>
+        <!-- Divider vertikal -->
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="@color/divider"/>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+        <!-- Panel kanan: Channel / Search -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@color/bg_dark">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tv_search_count"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:layout_marginTop="14dp"
+                    android:layout_marginBottom="4dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone"/>
+
+                <!-- Skeleton panel kanan saat search — sama dengan phone -->
+                <com.facebook.shimmer.ShimmerFrameLayout
+                    android:id="@+id/shimmer_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingTop="4dp">
+
+                        <include layout="@layout/item_channel_skeleton"/>
+                        <include layout="@layout/item_channel_skeleton"/>
+                        <include layout="@layout/item_channel_skeleton"/>
+
+                    </LinearLayout>
+                </com.facebook.shimmer.ShimmerFrameLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_search"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:scrollbars="none"
+                    android:clipToPadding="false"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="8dp"
+                    android:visibility="gone"
+                    android:focusable="true"
+                    android:nextFocusLeft="@id/rv_groups"/>
+            </LinearLayout>
+
+            <!-- Empty state panel kanan -->
+            <LinearLayout
+                android:id="@+id/empty_panel"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📺"
+                    android:textSize="56sp"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:text="@string/select_category_hint"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="16sp"
+                    android:gravity="center"/>
+            </LinearLayout>
+
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

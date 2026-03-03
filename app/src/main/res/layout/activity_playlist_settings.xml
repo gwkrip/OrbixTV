@@ -10,11 +10,11 @@
     <LinearLayout
         android:id="@+id/top_bar"
         android:layout_width="0dp"
-        android:layout_height="64dp"
+        android:layout_height="60dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="6dp"
-        android:background="@color/bg_surface"
+        android:paddingHorizontal="4dp"
+        android:background="@color/bg_dark"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -32,21 +32,20 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:text="@string/playlist_settings"
             android:textColor="@color/white"
-            android:textSize="19sp"
-            android:fontFamily="sans-serif-bold"
-            android:letterSpacing="-0.01" />
+            android:textSize="18sp"
+            android:fontFamily="sans-serif-bold" />
 
     </LinearLayout>
 
-    <!-- Divider -->
+    <!-- Thin divider under top bar -->
     <View
         android:id="@+id/divider_top"
         android:layout_width="0dp"
         android:layout_height="1dp"
-        android:background="@color/divider"
+        android:background="#1A2A3A"
         app:layout_constraintTop_toBottomOf="@id/top_bar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -65,11 +64,11 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="18dp"
-            android:paddingTop="24dp"
-            android:paddingBottom="40dp">
+            android:paddingHorizontal="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="32dp">
 
-            <!-- Active Source Card -->
+            <!-- ── Active Source Card ── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -77,34 +76,36 @@
                 android:gravity="center_vertical"
                 android:padding="16dp"
                 android:background="@drawable/bg_source_active"
-                android:layout_marginBottom="20dp">
+                android:layout_marginBottom="24dp">
 
-                <View
-                    android:layout_width="8dp"
-                    android:layout_height="8dp"
-                    android:background="@drawable/bg_status_dot"
-                    android:layout_marginEnd="12dp" />
+                <TextView
+                    android:layout_width="18dp"
+                    android:layout_height="18dp"
+                    android:text="●"
+                    android:textColor="@color/accent_blue"
+                    android:textSize="10sp"
+                    android:gravity="center" />
 
                 <TextView
                     android:id="@+id/tv_current_source"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:layout_marginStart="10dp"
                     android:text="Sumber aktif: URL Default"
                     android:textColor="@color/accent_blue"
                     android:textSize="13sp"
-                    android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.01" />
+                    android:fontFamily="sans-serif-medium" />
             </LinearLayout>
 
-            <!-- Playlist URL Section -->
+            <!-- ── Playlist URL Section ── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="20dp"
                 android:background="@drawable/bg_section_card"
-                android:layout_marginBottom="14dp">
+                android:layout_marginBottom="12dp">
 
                 <!-- Section header -->
                 <LinearLayout
@@ -112,7 +113,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="8dp">
+                    android:layout_marginBottom="6dp">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -123,7 +124,7 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="8dp"
                         android:text="URL Playlist M3U"
                         android:textColor="@color/white"
                         android:textSize="15sp"
@@ -135,49 +136,48 @@
                     android:layout_height="wrap_content"
                     android:text="Masukkan URL file .m3u atau .m3u8 yang dapat diakses publik."
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:lineSpacingMultiplier="1.5"
-                    android:layout_marginBottom="18dp" />
+                    android:textSize="12sp"
+                    android:lineSpacingMultiplier="1.4"
+                    android:layout_marginBottom="16dp" />
 
                 <!-- URL Input -->
                 <EditText
                     android:id="@+id/et_playlist_url"
                     android:layout_width="match_parent"
-                    android:layout_height="54dp"
+                    android:layout_height="52dp"
                     android:hint="@string/playlist_url_hint"
                     android:inputType="textUri"
                     android:textColor="@color/white"
                     android:textColorHint="@color/text_hint"
                     android:background="@drawable/bg_input_field"
-                    android:paddingHorizontal="16dp"
+                    android:paddingHorizontal="14dp"
                     android:textSize="13sp"
                     android:singleLine="true"
-                    android:layout_marginBottom="16dp" />
+                    android:layout_marginBottom="14dp" />
 
                 <!-- Apply Button -->
                 <TextView
                     android:id="@+id/btn_apply"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
+                    android:layout_height="48dp"
                     android:text="Terapkan Playlist"
                     android:textColor="@color/white"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
                     android:fontFamily="sans-serif-bold"
                     android:gravity="center"
                     android:background="@drawable/bg_btn_primary"
                     android:clickable="true"
                     android:focusable="true"
-                    android:letterSpacing="0.01"
                     android:layout_marginBottom="10dp" />
 
                 <!-- Reset Button -->
                 <TextView
                     android:id="@+id/btn_reset"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
+                    android:layout_height="48dp"
                     android:text="Reset ke URL Default"
                     android:textColor="@color/text_secondary"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
                     android:fontFamily="sans-serif-medium"
                     android:gravity="center"
                     android:background="@drawable/bg_btn_secondary"
@@ -186,7 +186,7 @@
 
             </LinearLayout>
 
-            <!-- ProgressBar -->
+            <!-- ProgressBar (loading state) -->
             <ProgressBar
                 android:id="@+id/progress_bar"
                 android:layout_width="wrap_content"
@@ -194,7 +194,7 @@
                 android:layout_gravity="center"
                 android:indeterminateTint="@color/accent_blue"
                 android:visibility="gone"
-                android:layout_marginBottom="10dp" />
+                android:layout_marginBottom="8dp" />
 
             <!-- Error Card -->
             <TextView
@@ -207,23 +207,23 @@
                 android:lineSpacingMultiplier="1.4"
                 android:background="@drawable/bg_error_card"
                 android:visibility="gone"
-                android:layout_marginBottom="14dp" />
+                android:layout_marginBottom="12dp" />
 
-            <!-- Tips Section -->
+            <!-- ── Tips Section ── -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="20dp"
                 android:background="@drawable/bg_section_card"
-                android:layout_marginBottom="14dp">
+                android:layout_marginBottom="12dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
                     android:gravity="center_vertical"
-                    android:layout_marginBottom="14dp">
+                    android:layout_marginBottom="12dp">
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -234,40 +234,79 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                        android:layout_marginStart="8dp"
                         android:text="@string/tips_title"
                         android:textColor="@color/white"
                         android:textSize="15sp"
                         android:fontFamily="sans-serif-bold" />
                 </LinearLayout>
 
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                    <TextView android:layout_width="12dp" android:layout_height="wrap_content" android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="File .m3u atau .m3u8 yang dapat diakses publik" android:textColor="@color/text_secondary" android:textSize="13sp" android:lineSpacingMultiplier="1.5"/>
+                <!-- Tips list items -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+                    <TextView android:layout_width="16dp" android:layout_height="wrap_content"
+                        android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="8dp"
+                        android:text="File .m3u atau .m3u8 yang dapat diakses publik"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.4"/>
                 </LinearLayout>
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                    <TextView android:layout_width="12dp" android:layout_height="wrap_content" android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="URL dari layanan IPTV berbayar (Xtream Codes, dll.)" android:textColor="@color/text_secondary" android:textSize="13sp" android:lineSpacingMultiplier="1.5"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+                    <TextView android:layout_width="16dp" android:layout_height="wrap_content"
+                        android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="8dp"
+                        android:text="URL dari layanan IPTV berbayar (Xtream Codes, dll.)"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.4"/>
                 </LinearLayout>
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="10dp">
-                    <TextView android:layout_width="12dp" android:layout_height="wrap_content" android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="GitHub raw file URL atau Google Drive direct link" android:textColor="@color/text_secondary" android:textSize="13sp" android:lineSpacingMultiplier="1.5"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+                    <TextView android:layout_width="16dp" android:layout_height="wrap_content"
+                        android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="8dp"
+                        android:text="GitHub raw file URL atau Google Drive direct link"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.4"/>
                 </LinearLayout>
-                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-                    <TextView android:layout_width="12dp" android:layout_height="wrap_content" android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
-                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="10dp" android:text="Jika URL gagal, app otomatis kembali ke playlist bawaan" android:textColor="@color/text_secondary" android:textSize="13sp" android:lineSpacingMultiplier="1.5"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <TextView android:layout_width="16dp" android:layout_height="wrap_content"
+                        android:text="•" android:textColor="@color/accent_blue" android:textSize="14sp"/>
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                        android:layout_weight="1" android:layout_marginStart="8dp"
+                        android:text="Jika URL gagal, app otomatis kembali ke playlist bawaan"
+                        android:textColor="@color/text_secondary" android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.4"/>
                 </LinearLayout>
 
             </LinearLayout>
 
-            <!-- Support Section -->
+            <!-- ── Support Section ── -->
             <LinearLayout
                 android:id="@+id/btn_support"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:padding="20dp"
+                android:padding="18dp"
                 android:background="@drawable/bg_support_button"
                 android:clickable="true"
                 android:focusable="true">
@@ -283,7 +322,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginBottom="5dp">
+                        android:layout_marginBottom="4dp">
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -296,8 +335,8 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
                             android:text="Dukung Pengembang"
-                            android:textColor="#2ED573"
-                            android:textSize="15sp"
+                            android:textColor="#66CC66"
+                            android:textSize="14sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
 
@@ -314,7 +353,7 @@
                     android:layout_height="18dp"
                     android:src="@drawable/ic_arrow_down"
                     android:rotation="-90"
-                    android:tint="#2ED573"
+                    android:tint="#66CC66"
                     android:importantForAccessibility="no" />
 
             </LinearLayout>

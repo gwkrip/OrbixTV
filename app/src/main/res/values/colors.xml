@@ -1,43 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Background hierarchy — Deep Midnight Navy -->
-    <color name="bg_dark">#06080F</color>
-    <color name="bg_surface">#0C1120</color>
-    <color name="bg_card">#121B30</color>
-    <color name="bg_card_elevated">#1A2540</color>
-    <color name="bg_logo">#1E2A44</color>
+    <!-- Background hierarchy -->
+    <color name="bg_dark">#0D0D12</color>
+    <color name="bg_surface">#16161F</color>
+    <color name="bg_card">#1E1E2C</color>
+    <color name="bg_card_elevated">#26263A</color>
+    <color name="bg_logo">#2A2A3A</color>
 
-    <!-- Accent — Electric Blue with Violet & Teal secondary -->
-    <color name="accent_blue">#5B8DEF</color>
-    <color name="accent_blue_dark">#3A6BD4</color>
-    <color name="accent_blue_dim">#131E38</color>
-    <color name="accent_violet">#8B6DFF</color>
-    <color name="accent_teal">#00CBA9</color>
-    <color name="accent_red">#FF4757</color>
-    <color name="accent_green">#2ED573</color>
-    <color name="accent_orange">#FF7043</color>
+    <!-- Accent -->
+    <color name="accent_blue">#4D9EFF</color>
+    <color name="accent_blue_dark">#2D7DD9</color>
+    <color name="accent_blue_dim">#1A3A5C</color>
+    <color name="accent_red">#FF4444</color>
+    <color name="accent_green">#44CC77</color>
 
     <!-- Text -->
-    <color name="white">#EEF4FF</color>
-    <color name="text_secondary">#6B82A8</color>
-    <color name="text_hint">#374865</color>
+    <color name="white">#FFFFFF</color>
+    <color name="text_secondary">#8899AA</color>
+    <color name="text_hint">#445566</color>
 
     <!-- Divider -->
-    <color name="divider">#141E32</color>
-    <color name="divider_strong">#1E2D48</color>
+    <color name="divider">#1E2A38</color>
+    <color name="divider_strong">#2A3A4A</color>
 
     <!-- Nav -->
-    <color name="nav_selected">#5B8DEF</color>
-    <color name="nav_unselected">#374865</color>
+    <color name="nav_selected">#4D9EFF</color>
+    <color name="nav_unselected">#445566</color>
 
     <!-- Stream badge colors -->
-    <color name="badge_hls">#5B8DEF</color>
-    <color name="badge_dash">#8B6DFF</color>
-    <color name="badge_rtmp">#FF7043</color>
-    <color name="badge_progressive">#2ED573</color>
+    <color name="badge_hls">#4D9EFF</color>
+    <color name="badge_dash">#AA77FF</color>
+    <color name="badge_rtmp">#FF7744</color>
+    <color name="badge_progressive">#44CC77</color>
 
     <!-- System -->
-    <color name="colorPrimary">#5B8DEF</color>
-    <color name="colorPrimaryDark">#06080F</color>
-    <color name="colorAccent">#5B8DEF</color>
+    <color name="colorPrimary">#4D9EFF</color>
+    <color name="colorPrimaryDark">#0D0D12</color>
+    <color name="colorAccent">#4D9EFF</color>
 </resources>
