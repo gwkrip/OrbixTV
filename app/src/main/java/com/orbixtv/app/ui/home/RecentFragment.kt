@@ -10,7 +10,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentRecentBinding
@@ -39,13 +38,9 @@ class RecentFragment : Fragment() {
 
         adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        val isLargeScreen = resources.configuration.smallestScreenWidthDp >= 720
-
+        // TV: selalu pakai GridLayout 3 kolom
         binding.rvRecent.apply {
-            layoutManager = if (isLargeScreen)
-                GridLayoutManager(requireContext(), 3)
-            else
-                LinearLayoutManager(requireContext())
+            layoutManager = GridLayoutManager(requireContext(), 3)
             adapter = this@RecentFragment.adapter
         }
 

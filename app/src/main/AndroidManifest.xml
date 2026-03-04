@@ -9,12 +9,12 @@
     <!-- ⑩ Widget update on boot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- TV: Leanback launcher support -->
+    <!-- App ini khusus TV — wajib Leanback -->
     <uses-feature
         android:name="android.software.leanback"
-        android:required="false" />
+        android:required="true" />
 
-    <!-- TV: Touchscreen tidak wajib (TV pakai D-pad/remote) -->
+    <!-- TV tidak punya touchscreen -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -31,18 +31,13 @@
         android:usesCleartextTraffic="true"
         android:banner="@mipmap/ic_launcher">
 
-        <!-- SPLASH: portrait untuk phone, landscape untuk TV -->
+        <!-- SPLASH: landscape untuk Android TV -->
         <activity
             android:name=".ui.splash.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.OrbixTV.Splash"
             android:screenOrientation="sensorLandscape">
-            <!-- Phone launcher -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <!-- Android TV Leanback launcher -->
+            <!-- Hanya TV Leanback launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />

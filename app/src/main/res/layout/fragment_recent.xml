@@ -10,7 +10,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header — konsisten dengan HomeFragment & Favorites -->
+        <!-- Header — sama persis dengan phone -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -39,7 +39,7 @@
                         android:text="@string/recent_title"
                         android:textColor="@color/white"
                         android:textSize="@dimen/text_title"
-                        android:fontFamily="sans-serif-black" />
+                        android:fontFamily="sans-serif-black"/>
 
                     <TextView
                         android:id="@+id/tv_recent_count"
@@ -47,7 +47,7 @@
                         android:layout_height="wrap_content"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp"
-                        android:layout_marginTop="1dp" />
+                        android:layout_marginTop="1dp"/>
                 </LinearLayout>
 
                 <ImageButton
@@ -58,17 +58,16 @@
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@color/text_secondary"
                     android:contentDescription="@string/clear_history"
-                    android:visibility="gone" />
+                    android:visibility="gone"/>
             </LinearLayout>
 
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:background="@color/divider" />
-
+                android:background="@color/divider"/>
         </LinearLayout>
 
-        <!-- Skeleton shimmer saat loading -->
+        <!-- Skeleton — pakai TV skeleton (sw720dp) -->
         <com.facebook.shimmer.ShimmerFrameLayout
             android:id="@+id/shimmer_recent"
             android:layout_width="match_parent"
@@ -82,10 +81,10 @@
                 android:orientation="vertical"
                 android:paddingTop="4dp">
 
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
-                <include layout="@layout/item_channel_skeleton" />
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
+                <include layout="@layout/item_channel_skeleton"/>
 
             </LinearLayout>
         </com.facebook.shimmer.ShimmerFrameLayout>
@@ -95,11 +94,15 @@
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:scrollbars="none"
-            android:clipToPadding="false"
             android:paddingTop="4dp"
-            android:paddingBottom="72dp"
-            android:visibility="gone" />
+            android:paddingBottom="8dp"
+            android:clipToPadding="false"
+            android:scrollbars="none"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:descendantFocusability="afterDescendants"
+            android:defaultFocusHighlightEnabled="false"
+            android:visibility="gone"/>
     </LinearLayout>
 
     <!-- Empty state -->
@@ -110,33 +113,33 @@
         android:layout_gravity="center"
         android:orientation="vertical"
         android:gravity="center"
-        android:paddingHorizontal="32dp">
+        android:paddingHorizontal="48dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📺"
-            android:textSize="52sp" />
+            android:textSize="64sp"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="20dp"
             android:text="@string/recent_empty_title"
             android:textColor="@color/text_secondary"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:fontFamily="sans-serif-medium"
-            android:gravity="center" />
+            android:gravity="center"/>
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="8dp"
             android:text="@string/recent_empty_hint"
             android:textColor="@color/text_hint"
-            android:textSize="13sp"
+            android:textSize="14sp"
             android:gravity="center"
-            android:lineSpacingMultiplier="1.4" />
+            android:lineSpacingMultiplier="1.4"/>
     </LinearLayout>
 
 </FrameLayout>
