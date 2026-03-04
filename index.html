@@ -19,21 +19,20 @@
     --muted:     #8899BB;
     --hint:      #3A4A60;
     --green:     #44CC66;
+    --red:       #FF5566;
+    --yellow:    #FFB844;
   }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   html { scroll-behavior: smooth; }
-
   body {
     font-family: 'DM Sans', sans-serif;
     background: var(--bg);
     color: var(--white);
     overflow-x: hidden;
-    cursor: default;
   }
 
-  /* ── GRAIN OVERLAY ── */
+  /* GRAIN */
   body::before {
     content: '';
     position: fixed; inset: 0; z-index: 999; pointer-events: none;
@@ -41,7 +40,7 @@
     opacity: 0.35;
   }
 
-  /* ── AMBIENT GLOW ── */
+  /* AMBIENT */
   .ambient {
     position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
     width: 800px; height: 600px; border-radius: 50%;
@@ -51,267 +50,382 @@
   }
   @keyframes pulse { from { opacity: 0.6; } to { opacity: 1; } }
 
-  /* ── NAV ── */
+  /* NAV */
   nav {
     position: fixed; top: 0; left: 0; right: 0; z-index: 100;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 40px; height: 64px;
-    background: linear-gradient(to bottom, #0A0A0FDD, transparent);
+    background: linear-gradient(to bottom, #0A0A0FEE, transparent);
     backdrop-filter: blur(12px);
   }
-  .nav-logo {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800; font-size: 20px;
-    letter-spacing: 0.02em;
-    color: var(--white);
-  }
+  .nav-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; letter-spacing: 0.02em; color: var(--white); }
   .nav-logo span { color: var(--blue); }
-  .nav-link {
-    font-size: 13px; color: var(--muted);
-    text-decoration: none; letter-spacing: 0.03em;
-    transition: color .2s;
-  }
+  .nav-links { display: flex; align-items: center; gap: 28px; }
+  .nav-link { font-size: 13px; color: var(--muted); text-decoration: none; letter-spacing: 0.03em; transition: color .2s; }
   .nav-link:hover { color: var(--white); }
+  .nav-version {
+    font-size: 11px; color: var(--blue); background: var(--blue-dim);
+    border: 1px solid #2A5080; padding: 4px 10px; border-radius: 100px;
+    font-family: 'Syne', sans-serif; font-weight: 600;
+    cursor: pointer; transition: background .2s;
+  }
+  .nav-version:hover { background: #1e4a70; }
 
-  /* ── HERO ── */
+  /* HERO */
   .hero {
     position: relative; z-index: 1;
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     text-align: center; padding: 100px 24px 80px;
   }
-
   .badge {
     display: inline-flex; align-items: center; gap: 8px;
     font-size: 11px; font-weight: 500; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--blue);
     background: var(--blue-dim); border: 1px solid #2A5080;
-    padding: 6px 16px; border-radius: 100px;
-    margin-bottom: 32px;
+    padding: 6px 16px; border-radius: 100px; margin-bottom: 32px;
     animation: fadeUp .6s ease both;
   }
-  .badge-dot {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--blue);
-    box-shadow: 0 0 8px var(--blue);
-    animation: blink 2s ease-in-out infinite;
-  }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 8px var(--blue); animation: blink 2s ease-in-out infinite; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(52px, 10vw, 96px);
-    font-weight: 800; line-height: 0.92;
-    letter-spacing: -0.03em;
-    animation: fadeUp .7s .1s ease both;
-  }
+  h1 { font-family: 'Syne', sans-serif; font-size: clamp(52px, 10vw, 96px); font-weight: 800; line-height: 0.92; letter-spacing: -0.03em; animation: fadeUp .7s .1s ease both; }
   h1 .accent { color: var(--blue); }
-  h1 .sub {
-    display: block;
-    font-size: clamp(28px, 5vw, 52px);
-    font-weight: 400; color: var(--muted);
-    letter-spacing: -0.01em;
-    margin-top: 8px;
-  }
+  h1 .sub { display: block; font-size: clamp(28px, 5vw, 52px); font-weight: 400; color: var(--muted); letter-spacing: -0.01em; margin-top: 8px; }
 
-  .tagline {
-    font-size: clamp(15px, 2vw, 18px);
-    color: var(--muted); font-weight: 300;
-    max-width: 480px; line-height: 1.6;
-    margin-top: 24px;
-    animation: fadeUp .7s .2s ease both;
-  }
+  .tagline { font-size: clamp(15px, 2vw, 18px); color: var(--muted); font-weight: 300; max-width: 480px; line-height: 1.6; margin-top: 24px; animation: fadeUp .7s .2s ease both; }
 
-  .cta-group {
-    display: flex; gap: 12px; flex-wrap: wrap;
-    justify-content: center; margin-top: 48px;
-    animation: fadeUp .7s .3s ease both;
-  }
+  .cta-group { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 48px; animation: fadeUp .7s .3s ease both; }
 
   .btn-primary {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 16px 32px; border-radius: 14px;
-    background: var(--blue);
-    color: #fff; font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 15px;
+    background: var(--blue); color: #fff;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px;
     text-decoration: none; letter-spacing: 0.02em;
     position: relative; overflow: hidden;
     transition: transform .2s, box-shadow .2s;
-    box-shadow: 0 8px 32px #4D9EFF44;
+    box-shadow: 0 8px 32px #4D9EFF44; cursor: pointer; border: none;
   }
-  .btn-primary::before {
-    content: ''; position: absolute; inset: 0;
-    background: linear-gradient(135deg, #ffffff22, transparent);
-  }
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 40px #4D9EFF66;
-  }
+  .btn-primary::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, #ffffff22, transparent); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px #4D9EFF66; }
   .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
   .btn-secondary {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 16px 28px; border-radius: 14px;
     background: transparent; border: 1px solid var(--border);
-    color: var(--muted); font-size: 14px;
-    text-decoration: none;
-    transition: border-color .2s, color .2s, transform .2s;
+    color: var(--muted); font-size: 14px; text-decoration: none;
+    transition: border-color .2s, color .2s, transform .2s; cursor: pointer;
   }
-  .btn-secondary:hover {
-    border-color: var(--blue); color: var(--blue);
-    transform: translateY(-2px);
+  .btn-secondary:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-2px); }
+
+  /* DOWNLOAD PANEL */
+  .download-panel {
+    display: none;
+    position: fixed; inset: 0; z-index: 500;
+    background: #0A0A0FCC; backdrop-filter: blur(8px);
+    align-items: center; justify-content: center;
+    padding: 24px;
   }
+  .download-panel.open { display: flex; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-  .dl-icon { font-size: 18px; }
+  .panel-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 20px; width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-  /* ── DIVIDER ── */
-  .divider {
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 28px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: var(--card); z-index: 10;
+    border-radius: 20px 20px 0 0;
+  }
+  .panel-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; }
+  .panel-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: color .2s, border-color .2s;
+  }
+  .panel-close:hover { color: var(--white); border-color: var(--blue); }
+
+  .panel-tabs {
+    display: flex; border-bottom: 1px solid var(--border);
+    padding: 0 28px; gap: 4px;
+  }
+  .panel-tab {
+    padding: 14px 16px; font-size: 13px; color: var(--muted);
+    cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+    font-weight: 500;
+  }
+  .panel-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  .panel-content { padding: 24px 28px; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* RELEASE ITEM */
+  .release-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; margin-bottom: 12px;
+    transition: border-color .2s;
+  }
+  .release-item:hover { border-color: var(--blue-dim); }
+  .release-item.latest { border-color: #4D9EFF44; background: linear-gradient(135deg, #1A2A3A, #13131C); }
+
+  .release-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .release-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: var(--white); }
+  .release-date { font-size: 12px; color: var(--hint); margin-top: 4px; }
+  .release-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .release-badge {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+    padding: 3px 8px; border-radius: 100px; text-transform: uppercase;
+  }
+  .badge-latest { background: #4D9EFF22; color: var(--blue); border: 1px solid #4D9EFF44; }
+  .badge-prerelease { background: #FFB84422; color: var(--yellow); border: 1px solid #FFB84444; }
+  .badge-stable { background: #44CC6622; color: var(--green); border: 1px solid #44CC6644; }
+
+  .release-changelog {
+    margin-top: 14px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted); line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+    max-height: 100px; overflow: hidden;
+    position: relative;
+  }
+  .release-changelog.expanded { max-height: none; }
+  .changelog-fade {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+    background: linear-gradient(transparent, var(--surface));
+    pointer-events: none;
+  }
+  .changelog-fade.hidden { display: none; }
+
+  .release-assets { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .asset-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-radius: 10px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--white); text-decoration: none; font-size: 13px;
+    transition: border-color .2s, background .2s; gap: 12px;
+    cursor: pointer;
+  }
+  .asset-btn:hover { border-color: var(--blue); background: #1A2A3A; }
+  .asset-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .asset-icon { font-size: 18px; flex-shrink: 0; }
+  .asset-name { font-size: 12px; color: var(--white); font-weight: 500; word-break: break-all; }
+  .asset-size { font-size: 11px; color: var(--hint); margin-top: 2px; }
+  .asset-dl { font-size: 11px; color: var(--blue); flex-shrink: 0; }
+
+  /* PROGRESS */
+  .dl-progress {
+    display: none; margin-top: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .dl-progress.show { display: block; }
+  .dl-progress-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .dl-bar { height: 4px; background: var(--border); border-radius: 100px; overflow: hidden; }
+  .dl-bar-fill { height: 100%; background: var(--blue); border-radius: 100px; width: 0%; transition: width .3s; box-shadow: 0 0 8px var(--blue); }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--blue); }
+  .stat-label { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* LOADING */
+  .loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 48px; gap: 16px; color: var(--muted);
+    font-size: 14px;
+  }
+  .spinner {
+    width: 32px; height: 32px; border: 2px solid var(--border);
+    border-top-color: var(--blue); border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg { text-align: center; padding: 32px; color: var(--muted); font-size: 14px; }
+  .error-msg .icon { font-size: 32px; margin-bottom: 12px; }
+
+  /* EXPAND CHANGELOG */
+  .expand-btn {
+    font-size: 11px; color: var(--blue); cursor: pointer;
+    background: none; border: none; padding: 4px 0;
+    margin-top: 6px; display: block;
+  }
+  .expand-btn:hover { text-decoration: underline; }
+
+  /* INFO BAR */
+  .info-bar {
     position: relative; z-index: 1;
-    display: flex; align-items: center; gap: 16px;
-    max-width: 900px; margin: 0 auto;
-    padding: 0 24px;
+    display: flex; flex-wrap: wrap; justify-content: center;
+    background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
   }
-  .divider-line { flex: 1; height: 1px; background: var(--border); }
-  .divider-text { font-size: 11px; letter-spacing: 0.1em; color: var(--hint); text-transform: uppercase; }
+  .info-item { display: flex; flex-direction: column; align-items: center; padding: 28px 40px; border-right: 1px solid var(--border); flex: 1; min-width: 140px; }
+  .info-item:last-child { border-right: none; }
+  .info-value { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--blue); }
+  .info-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
-  /* ── FEATURES ── */
-  .section {
-    position: relative; z-index: 1;
-    max-width: 960px; margin: 0 auto;
-    padding: 80px 24px;
-  }
-  .section-label {
-    font-size: 11px; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--blue);
-    font-weight: 500; margin-bottom: 12px;
-  }
-  .section-title {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(28px, 4vw, 40px);
-    font-weight: 700; letter-spacing: -0.02em;
-    margin-bottom: 48px;
-  }
+  /* SECTION */
+  .section { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 80px 24px; }
+  .section-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue); font-weight: 500; margin-bottom: 12px; }
+  .section-title { font-family: 'Syne', sans-serif; font-size: clamp(28px, 4vw, 40px); font-weight: 700; letter-spacing: -0.02em; margin-bottom: 48px; }
   .section-title em { font-style: normal; color: var(--muted); }
 
-  .features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 16px;
-  }
-
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
   .feature-card {
-    background: var(--card);
-    border: 1px solid var(--border);
+    background: var(--card); border: 1px solid var(--border);
     border-radius: 16px; padding: 24px;
-    transition: border-color .2s, transform .2s;
     opacity: 0; transform: translateY(20px);
     transition: opacity .5s ease, transform .5s ease, border-color .2s;
   }
   .feature-card.visible { opacity: 1; transform: translateY(0); }
   .feature-card:hover { border-color: var(--blue-dim); transform: translateY(-4px); }
-
-  .feature-icon {
-    width: 44px; height: 44px; border-radius: 12px;
-    background: var(--blue-dim); display: flex; align-items: center;
-    justify-content: center; font-size: 20px; margin-bottom: 16px;
-  }
-  .feature-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 600; font-size: 15px;
-    margin-bottom: 8px;
-  }
+  .feature-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--blue-dim); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 16px; }
+  .feature-title { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 15px; margin-bottom: 8px; }
   .feature-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
 
-  /* ── INFO BAR ── */
-  .info-bar {
-    position: relative; z-index: 1;
-    display: flex; flex-wrap: wrap; justify-content: center; gap: 0;
-    background: var(--surface); border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-  .info-item {
-    display: flex; flex-direction: column; align-items: center;
-    padding: 28px 40px;
-    border-right: 1px solid var(--border);
-    flex: 1; min-width: 140px;
-  }
-  .info-item:last-child { border-right: none; }
-  .info-value {
-    font-family: 'Syne', sans-serif;
-    font-size: 28px; font-weight: 800;
-    color: var(--blue);
-  }
-  .info-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  /* DIVIDER */
+  .divider { position: relative; z-index: 1; display: flex; align-items: center; gap: 16px; max-width: 900px; margin: 0 auto; padding: 0 24px; }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-text { font-size: 11px; letter-spacing: 0.1em; color: var(--hint); text-transform: uppercase; }
 
-  /* ── SUPPORT ── */
-  .support-section {
-    position: relative; z-index: 1;
-    max-width: 600px; margin: 0 auto;
-    padding: 64px 24px 80px;
-    text-align: center;
-  }
-  .support-card {
-    background: var(--card);
-    border: 1px solid #2E6B2E44;
-    border-radius: 20px; padding: 36px;
-    background: linear-gradient(135deg, #13201A, #0F1510);
-  }
+  /* SUPPORT */
+  .support-section { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; padding: 64px 24px 80px; text-align: center; }
+  .support-card { background: var(--card); border: 1px solid #2E6B2E44; border-radius: 20px; padding: 36px; background: linear-gradient(135deg, #13201A, #0F1510); }
   .support-emoji { font-size: 40px; margin-bottom: 16px; }
-  .support-title {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700; font-size: 22px;
-    margin-bottom: 10px;
-  }
+  .support-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 22px; margin-bottom: 10px; }
   .support-desc { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 28px; }
   .btn-support {
     display: inline-flex; align-items: center; gap: 10px;
     padding: 14px 28px; border-radius: 12px;
     background: transparent; border: 1.5px solid var(--green);
     color: var(--green); font-size: 14px; font-weight: 500;
-    text-decoration: none;
-    transition: background .2s, transform .2s;
+    text-decoration: none; transition: background .2s, transform .2s;
   }
-  .btn-support:hover {
-    background: #44CC6622;
-    transform: translateY(-2px);
-  }
+  .btn-support:hover { background: #44CC6622; transform: translateY(-2px); }
 
-  /* ── FOOTER ── */
-  footer {
-    position: relative; z-index: 1;
-    border-top: 1px solid var(--border);
-    padding: 28px 40px;
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 16px;
-  }
+  /* FOOTER */
+  footer { position: relative; z-index: 1; border-top: 1px solid var(--border); padding: 28px 40px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
   .footer-logo { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; }
   .footer-logo span { color: var(--blue); }
   .footer-text { font-size: 12px; color: var(--hint); }
   .footer-link { color: var(--muted); text-decoration: none; font-size: 12px; transition: color .2s; }
   .footer-link:hover { color: var(--blue); }
 
-  /* ── ANIMS ── */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
+  /* TOAST */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 18px;
+    font-size: 13px; color: var(--white);
+    display: flex; align-items: center; gap: 10px;
+    animation: toastIn .3s ease;
+    box-shadow: 0 8px 32px #00000066;
+    max-width: 320px;
   }
+  .toast.success { border-color: #44CC6644; }
+  .toast.error { border-color: #FF556644; }
+  @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes toastOut { to { transform: translateX(120%); opacity: 0; } }
+  .toast.out { animation: toastOut .3s ease forwards; }
 
-  /* ── RESPONSIVE ── */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
   @media (max-width: 600px) {
     nav { padding: 0 20px; }
+    .nav-links { gap: 16px; }
     .info-item { padding: 20px 16px; }
     footer { flex-direction: column; text-align: center; }
+    .stats-grid { grid-template-columns: 1fr; }
+    .panel-content { padding: 20px; }
   }
+
+  /* RELEASE SEARCH */
+  .search-box {
+    width: 100%; padding: 10px 14px; border-radius: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--white); font-size: 13px; font-family: 'DM Sans', sans-serif;
+    margin-bottom: 16px; outline: none;
+    transition: border-color .2s;
+  }
+  .search-box:focus { border-color: var(--blue); }
+  .search-box::placeholder { color: var(--hint); }
 </style>
 </head>
 <body>
 
 <div class="ambient"></div>
 
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- DOWNLOAD PANEL -->
+<div class="download-panel" id="downloadPanel">
+  <div class="panel-box">
+    <div class="panel-header">
+      <div class="panel-title">📦 Download OrbixTV</div>
+      <button class="panel-close" onclick="closePanel()">✕</button>
+    </div>
+    <div class="panel-tabs">
+      <div class="panel-tab active" onclick="switchTab('latest')">Terbaru</div>
+      <div class="panel-tab" onclick="switchTab('history')">Semua Versi</div>
+      <div class="panel-tab" onclick="switchTab('stats')">Statistik</div>
+    </div>
+    <div class="panel-content">
+
+      <!-- TAB: LATEST -->
+      <div class="tab-pane active" id="tab-latest">
+        <div class="loading" id="loadingLatest">
+          <div class="spinner"></div>
+          <span>Mengambil data dari GitHub...</span>
+        </div>
+        <div id="latestContent" style="display:none"></div>
+      </div>
+
+      <!-- TAB: HISTORY -->
+      <div class="tab-pane" id="tab-history">
+        <div class="loading" id="loadingHistory">
+          <div class="spinner"></div>
+          <span>Memuat riwayat rilis...</span>
+        </div>
+        <div id="historyContent" style="display:none">
+          <input class="search-box" type="text" placeholder="Cari versi..." id="searchInput" oninput="filterReleases()">
+          <div id="releasesList"></div>
+        </div>
+      </div>
+
+      <!-- TAB: STATS -->
+      <div class="tab-pane" id="tab-stats">
+        <div class="loading" id="loadingStats">
+          <div class="spinner"></div>
+          <span>Memuat statistik...</span>
+        </div>
+        <div id="statsContent" style="display:none"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- NAV -->
 <nav>
   <div class="nav-logo">Orbix<span>TV</span></div>
-  <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="nav-link">GitHub →</a>
+  <div class="nav-links">
+    <span class="nav-version" id="navVersion" onclick="openPanel()" title="Klik untuk download">v...</span>
+    <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="nav-link">GitHub →</a>
+  </div>
 </nav>
 
 <!-- HERO -->
@@ -327,15 +441,15 @@
   </h1>
 
   <p class="tagline">
-    Pemutar IPTV modern untuk Android. Dukung M3U, HLS, DASH, dan RTMP. 
+    Pemutar IPTV modern untuk Android. Dukung M3U, HLS, DASH, dan RTMP.
     Ringan, cepat, dan tanpa iklan.
   </p>
 
   <div class="cta-group">
-    <a href="https://github.com/gwkrip/OrbixTV/releases" target="_blank" class="btn-primary">
-      <span class="dl-icon">⬇</span>
-      Download APK
-    </a>
+    <button class="btn-primary" id="heroDownloadBtn" onclick="openPanel()" disabled>
+      <span>⬇</span>
+      <span id="heroDownloadLabel">Memuat...</span>
+    </button>
     <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="btn-secondary">
       ⭐ GitHub
     </a>
@@ -349,12 +463,12 @@
     <span class="info-label">Gratis selamanya</span>
   </div>
   <div class="info-item">
-    <span class="info-value">M3U</span>
-    <span class="info-label">Format playlist</span>
+    <span class="info-value" id="statVersion">—</span>
+    <span class="info-label">Versi terkini</span>
   </div>
   <div class="info-item">
-    <span class="info-value">PiP</span>
-    <span class="info-label">Picture in Picture</span>
+    <span class="info-value" id="statDownloads">—</span>
+    <span class="info-label">Total download</span>
   </div>
   <div class="info-item">
     <span class="info-value">TV</span>
@@ -437,24 +551,430 @@
   <div class="footer-logo">Orbix<span>TV</span></div>
   <span class="footer-text">Dibuat dengan ❤️ untuk komunitas IPTV Indonesia</span>
   <div style="display:flex;gap:20px">
-    <a href="https://github.com/gwkrip/OrbixTV/releases" target="_blank" class="footer-link">Download</a>
+    <a href="#" onclick="openPanel();return false;" class="footer-link">Download</a>
     <a href="https://github.com/gwkrip/OrbixTV" target="_blank" class="footer-link">Source Code</a>
     <a href="https://saweria.co/vryptdev" target="_blank" class="footer-link">Donasi</a>
   </div>
 </footer>
 
 <script>
-  // Scroll reveal for feature cards
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry, i) => {
-      if (entry.isIntersecting) {
-        setTimeout(() => entry.target.classList.add('visible'), i * 80);
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
+const REPO = 'gwkrip/OrbixTV';
+const API = `https://api.github.com/repos/${REPO}`;
+let allReleases = [];
+let repoStats = null;
 
-  document.querySelectorAll('.feature-card').forEach(card => observer.observe(card));
+// ── TOAST ──
+function toast(msg, type = 'info') {
+  const c = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${msg}</span>`;
+  c.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 350);
+  }, 3500);
+}
+
+// ── FORMAT ──
+function fmtBytes(b) {
+  if (!b) return '—';
+  if (b < 1024*1024) return (b/1024).toFixed(0) + ' KB';
+  return (b/(1024*1024)).toFixed(1) + ' MB';
+}
+function fmtNum(n) {
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return n;
+}
+function fmtDate(s) {
+  const d = new Date(s);
+  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+function timeAgo(s) {
+  const diff = (Date.now() - new Date(s)) / 1000;
+  if (diff < 60) return 'baru saja';
+  if (diff < 3600) return Math.floor(diff/60) + ' menit lalu';
+  if (diff < 86400) return Math.floor(diff/3600) + ' jam lalu';
+  if (diff < 2592000) return Math.floor(diff/86400) + ' hari lalu';
+  return fmtDate(s);
+}
+
+// ── PANEL ──
+function openPanel() {
+  document.getElementById('downloadPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if (!allReleases.length) fetchReleases();
+  if (!repoStats) fetchStats();
+}
+function closePanel() {
+  document.getElementById('downloadPanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.getElementById('downloadPanel').addEventListener('click', function(e) {
+  if (e.target === this) closePanel();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+// ── TABS ──
+function switchTab(name) {
+  document.querySelectorAll('.panel-tab').forEach((t, i) => {
+    const names = ['latest','history','stats'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── FETCH RELEASES ──
+async function fetchReleases() {
+  try {
+    const res = await fetch(`${API}/releases?per_page=30`);
+    if (!res.ok) throw new Error('API error: ' + res.status);
+    allReleases = await res.json();
+    if (!allReleases.length) throw new Error('No releases found');
+
+    const latest = allReleases[0];
+    renderLatest(latest);
+    renderHistory();
+    updateHero(latest);
+  } catch (e) {
+    showError('loadingLatest', 'Gagal memuat data. Pastikan repo memiliki releases publik.');
+    showError('loadingHistory', 'Gagal memuat riwayat rilis.');
+    console.error(e);
+  }
+}
+
+async function fetchStats() {
+  try {
+    const [repoRes, relRes] = await Promise.all([
+      fetch(`${API}`),
+      fetch(`${API}/releases?per_page=100`)
+    ]);
+    repoStats = await repoRes.json();
+    const rels = await relRes.json();
+
+    let totalDl = 0;
+    rels.forEach(r => r.assets.forEach(a => totalDl += a.download_count));
+
+    document.getElementById('statDownloads').textContent = fmtNum(totalDl);
+    renderStats(repoStats, rels, totalDl);
+  } catch(e) {
+    showError('loadingStats', 'Gagal memuat statistik.');
+  }
+}
+
+function showError(loadingId, msg) {
+  const el = document.getElementById(loadingId);
+  el.innerHTML = `<div class="error-msg"><div class="icon">⚠️</div>${msg}</div>`;
+}
+
+// ── UPDATE HERO ──
+function updateHero(latest) {
+  const ver = latest.tag_name;
+  document.getElementById('navVersion').textContent = ver;
+  document.getElementById('heroDownloadLabel').textContent = `Download APK ${ver}`;
+  document.getElementById('heroDownloadBtn').disabled = false;
+  document.getElementById('statVersion').textContent = ver;
+}
+
+// ── RENDER LATEST ──
+function renderLatest(release) {
+  const apkAssets = release.assets.filter(a => a.name.endsWith('.apk'));
+  const otherAssets = release.assets.filter(a => !a.name.endsWith('.apk'));
+
+  let html = `
+    <div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <span style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800">${release.tag_name}</span>
+        <span class="release-badge badge-latest">Latest</span>
+        ${release.prerelease ? '<span class="release-badge badge-prerelease">Pre-release</span>' : '<span class="release-badge badge-stable">Stable</span>'}
+      </div>
+      <div style="font-size:12px;color:var(--hint)">${fmtDate(release.published_at)} · ${timeAgo(release.published_at)}</div>
+    </div>
+  `;
+
+  if (release.body) {
+    const id = 'cl_latest';
+    html += `
+      <div style="margin-bottom:20px">
+        <div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Changelog</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative">
+          <div class="release-changelog" id="${id}">${escHtml(release.body)}</div>
+          <div class="changelog-fade" id="${id}_fade"></div>
+          <button class="expand-btn" id="${id}_btn" onclick="toggleChangelog('${id}')">Tampilkan lebih banyak ↓</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (apkAssets.length) {
+    html += `<div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">File APK</div>`;
+    html += `<div class="release-assets">`;
+    apkAssets.forEach(a => {
+      html += renderAssetBtn(a);
+    });
+    html += `</div>`;
+  } else {
+    html += `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+      Tidak ada file APK di rilis ini. <a href="${release.html_url}" target="_blank" style="color:var(--blue)">Lihat di GitHub →</a>
+    </div>`;
+  }
+
+  if (otherAssets.length) {
+    html += `<div style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin:16px 0 10px">File Lainnya</div>`;
+    html += `<div class="release-assets">`;
+    otherAssets.forEach(a => { html += renderAssetBtn(a, true); });
+    html += `</div>`;
+  }
+
+  // Progress bar
+  html += `<div class="dl-progress" id="dlProgress">
+    <div class="dl-progress-label"><span id="dlFileName">Mengunduh...</span><span id="dlPercent">0%</span></div>
+    <div class="dl-bar"><div class="dl-bar-fill" id="dlBarFill"></div></div>
+  </div>`;
+
+  const container = document.getElementById('latestContent');
+  container.innerHTML = html;
+  container.style.display = 'block';
+  document.getElementById('loadingLatest').style.display = 'none';
+}
+
+// ── RENDER ASSET BUTTON ──
+function renderAssetBtn(asset, secondary = false) {
+  const ext = asset.name.split('.').pop().toUpperCase();
+  const icons = { APK: '📱', ZIP: '🗜️', JSON: '📄', TXT: '📝', MD: '📝' };
+  const icon = icons[ext] || '📦';
+  return `
+    <div class="asset-btn" onclick="downloadAsset('${asset.browser_download_url}', '${escAttr(asset.name)}', ${asset.size})">
+      <div class="asset-left">
+        <div class="asset-icon">${icon}</div>
+        <div>
+          <div class="asset-name">${escHtml(asset.name)}</div>
+          <div class="asset-size">${fmtBytes(asset.size)} · ${fmtNum(asset.download_count)} download</div>
+        </div>
+      </div>
+      <div class="asset-dl">⬇ Download</div>
+    </div>
+  `;
+}
+
+// ── DOWNLOAD ASSET (direct, no redirect) ──
+async function downloadAsset(url, filename, size) {
+  const prog = document.getElementById('dlProgress');
+  const fill = document.getElementById('dlBarFill');
+  const pct = document.getElementById('dlPercent');
+  const fname = document.getElementById('dlFileName');
+
+  prog && prog.classList.add('show');
+  fname && (fname.textContent = filename);
+  pct && (pct.textContent = '0%');
+  fill && (fill.style.width = '0%');
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Download failed');
+    const reader = res.body.getReader();
+    const total = size || parseInt(res.headers.get('content-length')) || 0;
+    let received = 0;
+    const chunks = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      if (total) {
+        const p = Math.round((received / total) * 100);
+        fill && (fill.style.width = p + '%');
+        pct && (pct.textContent = p + '%');
+      }
+    }
+
+    const blob = new Blob(chunks);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    fill && (fill.style.width = '100%');
+    pct && (pct.textContent = '100%');
+    toast(`${filename} berhasil diunduh!`, 'success');
+    setTimeout(() => prog && prog.classList.remove('show'), 2000);
+
+  } catch (e) {
+    toast('Download gagal. Coba lagi.', 'error');
+    prog && prog.classList.remove('show');
+    console.error(e);
+  }
+}
+
+// ── RENDER HISTORY ──
+function renderHistory(filtered) {
+  const list = filtered || allReleases;
+  const container = document.getElementById('releasesList');
+  document.getElementById('loadingHistory').style.display = 'none';
+  document.getElementById('historyContent').style.display = 'block';
+
+  if (!list.length) {
+    container.innerHTML = `<div style="text-align:center;padding:32px;color:var(--muted);font-size:13px">Tidak ada versi yang cocok.</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map((r, idx) => {
+    const apkCount = r.assets.filter(a => a.name.endsWith('.apk')).length;
+    const totalDl = r.assets.reduce((s, a) => s + a.download_count, 0);
+    const id = 'r_' + r.id;
+    const bodyPreview = r.body ? escHtml(r.body.slice(0, 300)) + (r.body.length > 300 ? '...' : '') : '';
+
+    return `
+      <div class="release-item ${idx === 0 ? 'latest' : ''}">
+        <div class="release-top">
+          <div>
+            <div class="release-name">${r.tag_name} ${r.name !== r.tag_name ? '— ' + escHtml(r.name||'') : ''}</div>
+            <div class="release-date">${fmtDate(r.published_at)} · ${timeAgo(r.published_at)}</div>
+            <div class="release-badges">
+              ${idx === 0 ? '<span class="release-badge badge-latest">Latest</span>' : ''}
+              ${r.prerelease ? '<span class="release-badge badge-prerelease">Pre-release</span>' : '<span class="release-badge badge-stable">Stable</span>'}
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:12px;color:var(--muted)">${apkCount} APK</div>
+            <div style="font-size:12px;color:var(--hint)">${fmtNum(totalDl)} ↓</div>
+          </div>
+        </div>
+        ${bodyPreview ? `<div class="release-changelog">${bodyPreview}</div>` : ''}
+        <div class="release-assets" id="assets_${id}" style="display:none">
+          ${r.assets.length ? r.assets.map(a => renderAssetBtn(a)).join('') : `<a href="${r.html_url}" target="_blank" class="asset-btn">🔗 <span>Lihat di GitHub</span></a>`}
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+          ${r.assets.length ? `<button class="expand-btn" style="background:var(--surface);border:1px solid var(--border);padding:6px 12px;border-radius:8px;color:var(--blue);font-size:12px;cursor:pointer" onclick="toggleAssets('${id}',this)">⬇ Download</button>` : ''}
+          <a href="${r.html_url}" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:8px;transition:color .2s" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--muted)'">GitHub →</a>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleAssets(id, btn) {
+  const el = document.getElementById('assets_' + id);
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'flex';
+  el.style.flexDirection = 'column';
+  btn.textContent = open ? '⬇ Download' : '✕ Tutup';
+}
+
+function filterReleases() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const filtered = q ? allReleases.filter(r =>
+    r.tag_name.toLowerCase().includes(q) ||
+    (r.name||'').toLowerCase().includes(q) ||
+    (r.body||'').toLowerCase().includes(q)
+  ) : allReleases;
+  renderHistory(filtered);
+}
+
+// ── RENDER STATS ──
+function renderStats(repo, releases, totalDl) {
+  document.getElementById('loadingStats').style.display = 'none';
+  const content = document.getElementById('statsContent');
+  content.style.display = 'block';
+
+  const latestDl = releases[0]?.assets.reduce((s,a) => s+a.download_count, 0) || 0;
+  const avgDl = releases.length ? Math.round(totalDl / releases.length) : 0;
+
+  content.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(totalDl)}</div>
+        <div class="stat-label">Total Download</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${releases.length}</div>
+        <div class="stat-label">Total Rilis</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(repo.stargazers_count || 0)}</div>
+        <div class="stat-label">GitHub Stars ⭐</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(repo.forks_count || 0)}</div>
+        <div class="stat-label">Forks 🍴</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(latestDl)}</div>
+        <div class="stat-label">Download (Versi Ini)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmtNum(avgDl)}</div>
+        <div class="stat-label">Rata-rata / Versi</div>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:.08em;text-transform:uppercase">Top 5 Versi Terpopuler</div>
+      ${releases.slice(0,5).map(r => {
+        const dl = r.assets.reduce((s,a)=>s+a.download_count,0);
+        const pct = totalDl ? Math.round(dl/totalDl*100) : 0;
+        return `
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span style="color:var(--white)">${r.tag_name}</span>
+              <span style="color:var(--muted)">${fmtNum(dl)} (${pct}%)</span>
+            </div>
+            <div style="height:4px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:var(--blue);border-radius:4px;box-shadow:0 0 6px var(--blue)"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div style="text-align:center;padding-top:4px">
+      <a href="https://github.com/${REPO}" target="_blank" style="font-size:12px;color:var(--muted);text-decoration:none;transition:color .2s" onmouseover="this.style.color='var(--blue)'" onmouseout="this.style.color='var(--muted)'">Lihat lebih lanjut di GitHub →</a>
+    </div>
+  `;
+}
+
+// ── CHANGELOG TOGGLE ──
+function toggleChangelog(id) {
+  const el = document.getElementById(id);
+  const fade = document.getElementById(id+'_fade');
+  const btn = document.getElementById(id+'_btn');
+  const exp = el.classList.toggle('expanded');
+  if (fade) fade.classList.toggle('hidden', exp);
+  if (btn) btn.textContent = exp ? 'Tampilkan lebih sedikit ↑' : 'Tampilkan lebih banyak ↓';
+}
+
+// ── ESCAPE ──
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s) { return s.replace(/'/g,'\\\''); }
+
+// ── SCROLL REVEAL ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+document.querySelectorAll('.feature-card').forEach(card => observer.observe(card));
+
+// ── INIT ──
+// Preload latest release for hero button
+(async () => {
+  try {
+    const res = await fetch(`${API}/releases/latest`);
+    if (res.ok) {
+      const data = await res.json();
+      updateHero(data);
+    }
+  } catch(e) {
+    document.getElementById('heroDownloadBtn').disabled = false;
+    document.getElementById('heroDownloadLabel').textContent = 'Download APK';
+  }
+})();
 </script>
 </body>
 </html>
