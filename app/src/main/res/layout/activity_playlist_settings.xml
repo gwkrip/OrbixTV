@@ -156,7 +156,7 @@
                     android:layout_marginBottom="14dp" />
 
                 <!-- Apply Button -->
-                <TextView
+                <Button
                     android:id="@+id/btn_apply"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
@@ -164,14 +164,11 @@
                     android:textColor="@color/white"
                     android:textSize="14sp"
                     android:fontFamily="sans-serif-bold"
-                    android:gravity="center"
-                    android:background="@drawable/bg_btn_primary"
-                    android:clickable="true"
-                    android:focusable="true"
+                    android:backgroundTint="@color/accent_blue"
                     android:layout_marginBottom="10dp" />
 
                 <!-- Reset Button -->
-                <TextView
+                <Button
                     android:id="@+id/btn_reset"
                     android:layout_width="match_parent"
                     android:layout_height="48dp"
@@ -179,10 +176,9 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="14sp"
                     android:fontFamily="sans-serif-medium"
-                    android:gravity="center"
-                    android:background="@drawable/bg_btn_secondary"
-                    android:clickable="true"
-                    android:focusable="true" />
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:backgroundTint="@android:color/transparent"
+                    android:strokeColor="@color/text_secondary" />
 
             </LinearLayout>
 

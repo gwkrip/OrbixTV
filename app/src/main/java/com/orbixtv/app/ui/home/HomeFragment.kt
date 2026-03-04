@@ -126,22 +126,68 @@ class HomeFragment : Fragment() {
         var selectedSort   = sortValues.indexOf(viewModel.sortOrder.value)
         var selectedFilter = filterValues.indexOf(viewModel.streamFilter.value)
 
+        // Buat layout satu dialog yang memuat kedua pilihan sekaligus
+        val dialogView = android.view.LayoutInflater.from(requireContext())
+            .inflate(android.R.layout.simple_list_item_1, null, false)
+
+        val container = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 8)
+        }
+
+        // --- Section Urutkan ---
+        container.addView(android.widget.TextView(requireContext()).apply {
+            text = getString(R.string.sort_filter_title)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            textSize = 13f
+            setPadding(0, 0, 0, 8)
+        })
+        val sortGroup = android.widget.RadioGroup(requireContext())
+        sortLabels.forEachIndexed { i, label ->
+            sortGroup.addView(android.widget.RadioButton(requireContext()).apply {
+                text = label
+                id = android.view.View.generateViewId()
+                isChecked = i == selectedSort
+                setOnCheckedChangeListener { _, checked -> if (checked) selectedSort = i }
+            })
+        }
+        container.addView(sortGroup)
+
+        // --- Divider ---
+        container.addView(android.view.View(requireContext()).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1
+            ).also { it.setMargins(0, 20, 0, 16) }
+            setBackgroundColor(0x1AFFFFFF)
+        })
+
+        // --- Section Filter Stream ---
+        container.addView(android.widget.TextView(requireContext()).apply {
+            text = getString(R.string.filter_stream_type)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            textSize = 13f
+            setPadding(0, 0, 0, 8)
+        })
+        val filterGroup = android.widget.RadioGroup(requireContext())
+        filterLabels.forEachIndexed { i, label ->
+            filterGroup.addView(android.widget.RadioButton(requireContext()).apply {
+                text = label
+                id = android.view.View.generateViewId()
+                isChecked = i == selectedFilter
+                setOnCheckedChangeListener { _, checked -> if (checked) selectedFilter = i }
+            })
+        }
+        container.addView(filterGroup)
+
+        val scrollView = android.widget.ScrollView(requireContext()).apply { addView(container) }
+
         AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.sort_filter_title))
-            .setSingleChoiceItems(sortLabels, selectedSort) { _, which -> selectedSort = which }
-            .setPositiveButton(getString(R.string.next)) { _, _ ->
-                AlertDialog.Builder(requireContext())
-                    .setTitle(getString(R.string.filter_stream_type))
-                    .setSingleChoiceItems(filterLabels, selectedFilter) { _, which ->
-                        selectedFilter = which
-                    }
-                    .setPositiveButton(getString(R.string.apply_filter)) { _, _ ->
-                        viewModel.setSortOrder(sortValues[selectedSort])
-                        viewModel.setStreamFilter(filterValues[selectedFilter])
-                        applyCurrentSortFilter()
-                    }
-                    .setNegativeButton(getString(R.string.dialog_action_cancel), null)
-                    .show()
+            .setView(scrollView)
+            .setPositiveButton(getString(R.string.apply_filter)) { _, _ ->
+                viewModel.setSortOrder(sortValues[selectedSort])
+                viewModel.setStreamFilter(filterValues[selectedFilter])
+                applyCurrentSortFilter()
             }
             .setNegativeButton(getString(R.string.dialog_action_cancel), null)
             .show()
@@ -173,7 +219,14 @@ class HomeFragment : Fragment() {
 
     private fun setupSearch() {
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?) = true
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                // Sembunyikan keyboard virtual dan lepas fokus agar tidak menghalangi hasil
+                binding.searchView.clearFocus()
+                val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                        as android.view.inputmethod.InputMethodManager
+                imm.hideSoftInputFromWindow(binding.searchView.windowToken, 0)
+                return true
+            }
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
                 isSearchActive = query.isNotBlank()

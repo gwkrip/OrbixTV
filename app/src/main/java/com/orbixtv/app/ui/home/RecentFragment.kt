@@ -39,8 +39,7 @@ class RecentFragment : Fragment() {
 
         adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        val isLargeScreen = resources.displayMetrics.widthPixels /
-                resources.displayMetrics.density >= 720
+        val isLargeScreen = resources.configuration.smallestScreenWidthDp >= 720
 
         binding.rvRecent.apply {
             layoutManager = if (isLargeScreen)
@@ -82,14 +81,23 @@ class RecentFragment : Fragment() {
                             binding.shimmerRecent.visibility = View.GONE
                             binding.shimmerRecent.alpha = 1f
                         }.start()
+                    loadingJustFinished = true
                     refreshRecent()
                 }
             }
         }
     }
 
+    private var loadingJustFinished = false
+
     override fun onResume() {
         super.onResume()
+        // Jika loading baru saja selesai, refreshRecent() sudah dipanggil dari observer.
+        // Lewati panggilan kedua agar tidak double-submit.
+        if (loadingJustFinished) {
+            loadingJustFinished = false
+            return
+        }
         refreshRecent()
     }
 

@@ -612,8 +612,11 @@ class PlayerActivity : AppCompatActivity() {
                 .alpha(0f)
                 .setDuration(300)
                 .withEndAction {
-                    binding.shimmerPlayer.visibility = View.GONE
-                    binding.shimmerPlayer.alpha = 1f
+                    // Guard: activity bisa saja sudah di-destroy saat animasi selesai
+                    if (!isFinishing && !isDestroyed) {
+                        binding.shimmerPlayer.visibility = View.GONE
+                        binding.shimmerPlayer.alpha = 1f
+                    }
                 }.start()
         }
     }

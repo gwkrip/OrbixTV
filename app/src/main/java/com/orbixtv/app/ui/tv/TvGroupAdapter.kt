@@ -14,6 +14,17 @@ class TvGroupAdapter(
 
     private var selectedPosition = -1
 
+    override fun submitList(list: List<ChannelGroup>?) {
+        // Jika list baru tidak mengandung item yang sedang di-select (mis. setelah reload playlist),
+        // reset selectedPosition agar tidak menunjuk ke grup yang salah.
+        if (list != null && selectedPosition >= 0) {
+            val currentSelectedName = currentList.getOrNull(selectedPosition)?.name
+            val stillExists = list.any { it.name == currentSelectedName }
+            if (!stillExists) selectedPosition = -1
+        }
+        super.submitList(list)
+    }
+
     companion object DiffCallback : DiffUtil.ItemCallback<ChannelGroup>() {
         override fun areItemsTheSame(a: ChannelGroup, b: ChannelGroup) = a.name == b.name
         override fun areContentsTheSame(a: ChannelGroup, b: ChannelGroup) = a == b

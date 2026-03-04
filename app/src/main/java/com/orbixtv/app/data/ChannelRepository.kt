@@ -3,6 +3,7 @@ package com.orbixtv.app.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Environment
+import com.orbixtv.app.ui.home.clearPingCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -80,7 +81,11 @@ class ChannelRepository private constructor(private val context: Context) {
         }
     }
 
-    suspend fun reloadPlaylist(): String? = loadPlaylist()
+    suspend fun reloadPlaylist(): String? {
+        // Bersihkan cache ping channel lama agar status dot tidak menampilkan data stale
+        clearPingCache()
+        return loadPlaylist()
+    }
 
     suspend fun isPlaylistUrlReachable(): Boolean = withContext(Dispatchers.IO) {
         val url = getPlaylistUrl().ifEmpty { return@withContext true }
@@ -149,14 +154,16 @@ class ChannelRepository private constructor(private val context: Context) {
         prefs.getStringSet("favorites", emptySet()) ?: emptySet()
 
     private suspend fun refreshFavoritesCache() {
-        favoritesMutex.withLock {
+        val currentFavoriteIds = favoritesMutex.withLock {
             if (!isFavoritesLoaded) {
                 cachedFavoriteIds = loadFavoriteIds()
                 isFavoritesLoaded = true
             }
+            // Ambil snapshot ID di dalam lock agar konsisten
+            cachedFavoriteIds.toSet()
         }
         _favorites.value = cachedAllChannels
-            .filter { cachedFavoriteIds.contains(it.id) }
+            .filter { currentFavoriteIds.contains(it.id) }
             .map { it.copy(isFavorite = true) }
     }
 

@@ -53,8 +53,7 @@ class FavoritesFragment : Fragment() {
 
         adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        val isLargeScreen = resources.displayMetrics.widthPixels /
-                resources.displayMetrics.density >= 720
+        val isLargeScreen = resources.configuration.smallestScreenWidthDp >= 720
 
         binding.rvFavorites.apply {
             layoutManager = if (isLargeScreen)

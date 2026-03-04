@@ -13,6 +13,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.facebook.shimmer.ShimmerDrawable
 import com.orbixtv.app.R
+import com.orbixtv.app.ui.player.PlayerActivity
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.databinding.ItemChannelBinding
@@ -27,12 +28,11 @@ private val pingCache = ConcurrentHashMap<String, Pair<Int, Long>>()
 private const val PING_TTL_MS = 2 * 60 * 1000L
 private val pingSemaphore = Semaphore(6)
 
-private val pingHttpClient = okhttp3.OkHttpClient.Builder()
-    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-    .readTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-    .followRedirects(true)
-    .followSslRedirects(true)
-    .build()
+/** Hapus seluruh cache ping — dipanggil saat playlist berubah/reload. */
+fun clearPingCache() {
+    pingCache.clear()
+}
+
 
 /** ShimmerDrawable sekali buat, dipakai sebagai placeholder logo di semua item */
 private val shimmerPlaceholder: ShimmerDrawable by lazy {
@@ -189,8 +189,10 @@ class ChannelAdapter(
                     }
                     .build()
 
-                pingHttpClient.newCall(request).execute().use { response ->
-                    if (response.code in 200..403) 1 else -1
+                PlayerActivity.sharedOkHttpClient.newCall(request).execute().use { response ->
+                    // 200–299 = sukses, 301/302 = redirect (masih "hidup").
+                    // 403 Forbidden berarti server menolak akses → offline bagi user.
+                    if (response.code in 200..302) 1 else -1
                 }
             } catch (e: Exception) {
                 -1
