@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.widget.SearchView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -19,7 +18,6 @@ import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentFavoritesBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
-import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.io.File
@@ -58,40 +56,18 @@ class FavoritesFragment : Fragment() {
             adapter = this@FavoritesFragment.adapter
         }
 
-        setupSearch()
         setupExportImport()
         observeLoadingState()
         observeFavorites()
     }
 
-    private fun setupSearch() {
-        binding.searchViewFavorites?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?) = true
-            override fun onQueryTextChange(newText: String?): Boolean {
-                val query = newText?.trim() ?: ""
-                val filtered = if (query.isEmpty()) allFavorites
-                else allFavorites.filter {
-                    it.name.contains(query, ignoreCase = true) ||
-                    it.group.contains(query, ignoreCase = true)
-                }
-                adapter.submitList(filtered)
-                binding.tvFavoritesCount.text = if (filtered.isEmpty()) ""
-                    else "${filtered.size} dari ${allFavorites.size} favorit"
-                return true
-            }
-        })
-    }
+    // setupSearch() dihapus: layout TV fragment_favorites tidak memiliki searchViewFavorites.
+    // Pencarian favorit di TV dilakukan via search bar utama di HomeFragment.
 
     private fun setupExportImport() {
-        binding.btnExport?.setOnClickListener {
-            viewModel.exportFavorites { file ->
-                if (file != null) showExportSuccess(file)
-                else showSimpleMessage(getString(R.string.export_failed))
-            }
-        }
-        binding.btnImport?.setOnClickListener {
-            importLauncher.launch("application/json")
-        }
+        // btnExport dan btnImport tidak ada di layout TV fragment_favorites.
+        // Fitur export/import tetap tersedia via kode, namun tidak ditampilkan di UI TV
+        // karena TV tidak punya keyboard/file picker yang mudah diakses.
     }
 
     private fun handleImport(uri: Uri) {
