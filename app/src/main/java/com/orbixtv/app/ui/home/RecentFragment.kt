@@ -10,12 +10,12 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentRecentBinding
 import com.orbixtv.app.ui.MainViewModel
 import com.orbixtv.app.ui.player.PlayerActivity
-import com.facebook.shimmer.ShimmerFrameLayout
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -38,9 +38,14 @@ class RecentFragment : Fragment() {
 
         adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        // TV: selalu pakai GridLayout 3 kolom
+        val isLargeScreen = resources.displayMetrics.widthPixels /
+                resources.displayMetrics.density >= 720
+
         binding.rvRecent.apply {
-            layoutManager = GridLayoutManager(requireContext(), 3)
+            layoutManager = if (isLargeScreen)
+                GridLayoutManager(requireContext(), 3)
+            else
+                LinearLayoutManager(requireContext())
             adapter = this@RecentFragment.adapter
         }
 
@@ -64,35 +69,13 @@ class RecentFragment : Fragment() {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
-                if (loading) {
-                    binding.shimmerRecent.visibility = View.VISIBLE
-                    binding.shimmerRecent.startShimmer()
-                } else {
-                    binding.shimmerRecent.stopShimmer()
-                    binding.shimmerRecent.animate()
-                        .alpha(0f)
-                        .setDuration(250)
-                        .withEndAction {
-                            binding.shimmerRecent.visibility = View.GONE
-                            binding.shimmerRecent.alpha = 1f
-                        }.start()
-                    loadingJustFinished = true
-                    refreshRecent()
-                }
+                if (!loading) refreshRecent()
             }
         }
     }
 
-    private var loadingJustFinished = false
-
     override fun onResume() {
         super.onResume()
-        // Jika loading baru saja selesai, refreshRecent() sudah dipanggil dari observer.
-        // Lewati panggilan kedua agar tidak double-submit.
-        if (loadingJustFinished) {
-            loadingJustFinished = false
-            return
-        }
         refreshRecent()
     }
 
@@ -141,7 +124,6 @@ class RecentFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_MIME_TYPE_HINT, channel.mimeTypeHint)
-            putExtra(PlayerActivity.EXTRA_STREAM_TYPE, channel.streamType)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
         })
     }

@@ -8,11 +8,13 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.SearchView
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.orbixtv.app.R
 import com.orbixtv.app.data.Channel
 import com.orbixtv.app.databinding.FragmentFavoritesBinding
@@ -50,24 +52,50 @@ class FavoritesFragment : Fragment() {
 
         adapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
 
-        // TV: selalu pakai GridLayout 3 kolom
+        val isLargeScreen = resources.displayMetrics.widthPixels /
+                resources.displayMetrics.density >= 720
+
         binding.rvFavorites.apply {
-            layoutManager = GridLayoutManager(requireContext(), 3)
+            layoutManager = if (isLargeScreen)
+                GridLayoutManager(requireContext(), 3)
+            else
+                LinearLayoutManager(requireContext())
             adapter = this@FavoritesFragment.adapter
         }
 
+        setupSearch()
         setupExportImport()
-        observeLoadingState()
         observeFavorites()
     }
 
-    // setupSearch() dihapus: layout TV fragment_favorites tidak memiliki searchViewFavorites.
-    // Pencarian favorit di TV dilakukan via search bar utama di HomeFragment.
+    private fun setupSearch() {
+        binding.searchViewFavorites?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?) = true
+            override fun onQueryTextChange(newText: String?): Boolean {
+                val query = newText?.trim() ?: ""
+                val filtered = if (query.isEmpty()) allFavorites
+                else allFavorites.filter {
+                    it.name.contains(query, ignoreCase = true) ||
+                    it.group.contains(query, ignoreCase = true)
+                }
+                adapter.submitList(filtered)
+                binding.tvFavoritesCount.text = if (filtered.isEmpty()) ""
+                    else "${filtered.size} dari ${allFavorites.size} favorit"
+                return true
+            }
+        })
+    }
 
     private fun setupExportImport() {
-        // btnExport dan btnImport tidak ada di layout TV fragment_favorites.
-        // Fitur export/import tetap tersedia via kode, namun tidak ditampilkan di UI TV
-        // karena TV tidak punya keyboard/file picker yang mudah diakses.
+        binding.btnExport?.setOnClickListener {
+            viewModel.exportFavorites { file ->
+                if (file != null) showExportSuccess(file)
+                else showSimpleMessage(getString(R.string.export_failed))
+            }
+        }
+        binding.btnImport?.setOnClickListener {
+            importLauncher.launch("application/json")
+        }
     }
 
     private fun handleImport(uri: Uri) {
@@ -117,32 +145,16 @@ class FavoritesFragment : Fragment() {
             .show()
     }
 
-    private fun observeLoadingState() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.isLoading.collectLatest { loading ->
-                if (loading) {
-                    binding.shimmerFavorites.visibility = View.VISIBLE
-                    binding.shimmerFavorites.startShimmer()
-                } else {
-                    binding.shimmerFavorites.stopShimmer()
-                    binding.shimmerFavorites.animate()
-                        .alpha(0f)
-                        .setDuration(250)
-                        .withEndAction {
-                            binding.shimmerFavorites.visibility = View.GONE
-                            binding.shimmerFavorites.alpha = 1f
-                        }.start()
-                }
-            }
-        }
-    }
-
     private fun observeFavorites() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.favorites.collectLatest { favs ->
                 allFavorites = favs
                 adapter.submitList(favs)
                 binding.tvFavoritesCount.text = if (favs.isEmpty()) "" else "${favs.size} favorit"
+
+                binding.searchViewFavorites?.visibility =
+                    if (favs.size > 5) View.VISIBLE else View.GONE
+
                 val isEmpty = favs.isEmpty()
                 if (isEmpty && binding.rvFavorites.visibility == View.VISIBLE) {
                     binding.rvFavorites.animate().alpha(0f).setDuration(200)
@@ -182,7 +194,6 @@ class FavoritesFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_MIME_TYPE_HINT, channel.mimeTypeHint)
-            putExtra(PlayerActivity.EXTRA_STREAM_TYPE, channel.streamType)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
         })
     }

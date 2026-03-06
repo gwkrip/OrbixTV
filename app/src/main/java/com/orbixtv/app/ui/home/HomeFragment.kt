@@ -36,12 +36,16 @@ class HomeFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by activityViewModels()
 
-    private lateinit var tvGroupAdapter: TvGroupAdapter
-    private lateinit var tvChannelAdapter: ChannelAdapter
+    private lateinit var groupAdapter: GroupAdapter
+    private lateinit var searchAdapter: ChannelAdapter
+    private var tvGroupAdapter: TvGroupAdapter? = null
+    private var tvChannelAdapter: ChannelAdapter? = null
 
     private var isSearchActive = false
+    private var isTvLayout = false
     private var searchDebounceJob: Job? = null
 
+    // Launcher untuk PlaylistSettingsActivity — reload playlist jika ada perubahan
     private val settingsLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -59,14 +63,31 @@ class HomeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupAdapters()
+
+        isTvLayout = binding.root.findViewById<View?>(R.id.empty_panel) != null
+
+        if (isTvLayout) setupTvAdapters() else setupPhoneAdapters()
+
         setupSearch()
         setupSettingsButton()
         setupSortFilter()
         observeData()
     }
 
-    private fun setupAdapters() {
+    private fun setupPhoneAdapters() {
+        groupAdapter = GroupAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
+        binding.rvGroups.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = groupAdapter
+        }
+        searchAdapter = ChannelAdapter(viewLifecycleOwner) { channel -> openPlayer(channel) }
+        binding.rvSearch.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = searchAdapter
+        }
+    }
+
+    private fun setupTvAdapters() {
         tvGroupAdapter = TvGroupAdapter { group -> showChannelsForGroup(group) }
         binding.rvGroups.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -84,7 +105,7 @@ class HomeFragment : Fragment() {
         binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
         binding.rvSearch.visibility = View.VISIBLE
         val sorted = viewModel.getFilteredSortedChannels(group.channels)
-        tvChannelAdapter.submitList(sorted)
+        tvChannelAdapter?.submitList(sorted)
         binding.tvSearchCount.text = "${group.flagEmoji} ${group.name}  —  ${sorted.size} saluran"
         binding.tvSearchCount.visibility = View.VISIBLE
     }
@@ -94,7 +115,7 @@ class HomeFragment : Fragment() {
     }
 
     private fun showSortFilterDialog() {
-        val sortLabels   = arrayOf("Default", "Nama A-Z", "Nama Z-A", "Tipe Stream")
+        val sortLabels   = arrayOf("Default", "Nama A–Z", "Nama Z–A", "Tipe Stream")
         val sortValues   = SortOrder.values()
         val filterLabels = arrayOf("Semua", "HLS", "DASH", "RTMP")
         val filterValues = StreamFilter.values()
@@ -102,96 +123,77 @@ class HomeFragment : Fragment() {
         var selectedSort   = sortValues.indexOf(viewModel.sortOrder.value)
         var selectedFilter = filterValues.indexOf(viewModel.streamFilter.value)
 
-        val container = android.widget.LinearLayout(requireContext()).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 8)
-        }
-        container.addView(android.widget.TextView(requireContext()).apply {
-            text = getString(R.string.sort_filter_title)
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            textSize = 13f; setPadding(0, 0, 0, 8)
-        })
-        val sortGroup = android.widget.RadioGroup(requireContext())
-        sortLabels.forEachIndexed { i, label ->
-            sortGroup.addView(android.widget.RadioButton(requireContext()).apply {
-                text = label; id = View.generateViewId(); isChecked = i == selectedSort
-                setOnCheckedChangeListener { _, checked -> if (checked) selectedSort = i }
-            })
-        }
-        container.addView(sortGroup)
-        container.addView(View(requireContext()).apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1
-            ).also { it.setMargins(0, 20, 0, 16) }
-            setBackgroundColor(0x1AFFFFFF)
-        })
-        container.addView(android.widget.TextView(requireContext()).apply {
-            text = getString(R.string.filter_stream_type)
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            textSize = 13f; setPadding(0, 0, 0, 8)
-        })
-        val filterGroup = android.widget.RadioGroup(requireContext())
-        filterLabels.forEachIndexed { i, label ->
-            filterGroup.addView(android.widget.RadioButton(requireContext()).apply {
-                text = label; id = View.generateViewId(); isChecked = i == selectedFilter
-                setOnCheckedChangeListener { _, checked -> if (checked) selectedFilter = i }
-            })
-        }
-        container.addView(filterGroup)
-
         AlertDialog.Builder(requireContext())
             .setTitle(getString(R.string.sort_filter_title))
-            .setView(android.widget.ScrollView(requireContext()).apply { addView(container) })
-            .setPositiveButton(getString(R.string.apply_filter)) { _, _ ->
-                viewModel.setSortOrder(sortValues[selectedSort])
-                viewModel.setStreamFilter(filterValues[selectedFilter])
-                applyCurrentSortFilter()
+            .setSingleChoiceItems(sortLabels, selectedSort) { _, which -> selectedSort = which }
+            .setPositiveButton(getString(R.string.next)) { _, _ ->
+                AlertDialog.Builder(requireContext())
+                    .setTitle(getString(R.string.filter_stream_type))
+                    .setSingleChoiceItems(filterLabels, selectedFilter) { _, which ->
+                        selectedFilter = which
+                    }
+                    .setPositiveButton(getString(R.string.apply_filter)) { _, _ ->
+                        viewModel.setSortOrder(sortValues[selectedSort])
+                        viewModel.setStreamFilter(filterValues[selectedFilter])
+                        applyCurrentSortFilter()
+                    }
+                    .setNegativeButton(getString(R.string.dialog_action_cancel), null)
+                    .show()
             }
             .setNegativeButton(getString(R.string.dialog_action_cancel), null)
             .show()
     }
 
     private fun applyCurrentSortFilter() {
-        val sorted = viewModel.groups.value.map { g ->
-            g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
-        }
-        tvGroupAdapter.submitList(sorted)
-        val activeChannelId = tvChannelAdapter.currentList.firstOrNull()?.id
-        if (activeChannelId != null) {
-            val activeGroup = viewModel.groups.value.firstOrNull { g ->
-                g.channels.any { ch -> ch.id == activeChannelId }
+        if (isTvLayout) {
+            val sorted = viewModel.groups.value.map { g ->
+                g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
             }
-            activeGroup?.let { showChannelsForGroup(it) }
+            tvGroupAdapter?.submitList(sorted)
+            val activeChannelId = tvChannelAdapter?.currentList?.firstOrNull()?.id
+            if (activeChannelId != null) {
+                val activeGroup = viewModel.groups.value.firstOrNull { g ->
+                    g.channels.any { ch -> ch.id == activeChannelId }
+                }
+                activeGroup?.let { showChannelsForGroup(it) }
+            }
+        } else if (isSearchActive) {
+            val filtered = viewModel.getFilteredSortedChannels(viewModel.searchResults.value)
+            searchAdapter.submitList(filtered)
+        } else {
+            val newGroups = viewModel.groups.value.map { group ->
+                group.copy(channels = viewModel.getFilteredSortedChannels(group.channels))
+            }
+            groupAdapter.submitList(newGroups)
         }
     }
 
     private fun setupSearch() {
         binding.searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                binding.searchView.clearFocus()
-                val imm = requireContext().getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                        as android.view.inputmethod.InputMethodManager
-                imm.hideSoftInputFromWindow(binding.searchView.windowToken, 0)
-                return true
-            }
+            override fun onQueryTextSubmit(query: String?) = true
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
                 isSearchActive = query.isNotBlank()
-                if (isSearchActive) {
-                    binding.rvSearch.visibility = View.GONE
-                    binding.shimmerSearch?.visibility = View.VISIBLE
-                    binding.shimmerSearch?.startShimmer()
-                    binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
+
+                if (isTvLayout) {
+                    if (isSearchActive) {
+                        binding.rvSearch.visibility = View.VISIBLE
+                        binding.root.findViewById<View?>(R.id.empty_panel)?.visibility = View.GONE
+                    }
                 } else {
-                    binding.shimmerSearch?.stopShimmer()
-                    binding.shimmerSearch?.visibility = View.GONE
+                    if (isSearchActive) {
+                        binding.searchPanel?.visibility = View.VISIBLE
+                        binding.rvGroups.visibility = View.GONE
+                    } else {
+                        binding.searchPanel?.visibility = View.GONE
+                        binding.rvGroups.visibility = View.VISIBLE
+                        binding.tvSearchCount.visibility = View.GONE
+                    }
                 }
+
                 searchDebounceJob?.cancel()
                 searchDebounceJob = viewLifecycleOwner.lifecycleScope.launch {
                     delay(300)
-                    binding.shimmerSearch?.stopShimmer()
-                    binding.shimmerSearch?.visibility = View.GONE
-                    if (isSearchActive) binding.rvSearch.visibility = View.VISIBLE
                     viewModel.search(query)
                 }
                 return true
@@ -203,6 +205,7 @@ class HomeFragment : Fragment() {
         binding.btnSettings.setOnClickListener {
             settingsLauncher.launch(Intent(requireContext(), PlaylistSettingsActivity::class.java))
         }
+
         binding.btnRefresh.setOnClickListener {
             if (viewModel.isLoading.value) return@setOnClickListener
             startRefreshAnimation()
@@ -217,7 +220,8 @@ class HomeFragment : Fragment() {
             android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f,
             android.view.animation.Animation.RELATIVE_TO_SELF, 0.5f
         ).apply {
-            duration = 600; repeatCount = android.view.animation.Animation.INFINITE
+            duration = 600
+            repeatCount = android.view.animation.Animation.INFINITE
             interpolator = LinearInterpolator()
         }
         binding.btnRefresh.startAnimation(spin)
@@ -226,17 +230,10 @@ class HomeFragment : Fragment() {
     private fun observeData() {
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.isLoading.collectLatest { loading ->
-                if (loading) {
-                    binding.shimmerHome.visibility = View.VISIBLE
-                    binding.shimmerHome.startShimmer()
-                    binding.rvGroups.visibility = View.GONE
-                } else {
-                    binding.shimmerHome.stopShimmer()
-                    binding.shimmerHome.animate().alpha(0f).setDuration(250).withEndAction {
-                        binding.shimmerHome.visibility = View.GONE
-                        binding.shimmerHome.alpha = 1f
-                    }.start()
-                    binding.btnRefresh.clearAnimation()
+                binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
+                if (!loading) binding.btnRefresh.clearAnimation()
+                if (!isTvLayout) {
+                    binding.rvGroups.visibility = if (loading) View.GONE else View.VISIBLE
                 }
             }
         }
@@ -245,14 +242,17 @@ class HomeFragment : Fragment() {
             viewModel.groups.collectLatest { groups ->
                 val totalChannels = groups.sumOf { it.channels.size }
                 binding.tvChannelCount.text = "$totalChannels saluran"
-                if (binding.rvGroups.visibility == View.GONE && groups.isNotEmpty()) {
-                    binding.rvGroups.alpha = 0f
-                    binding.rvGroups.visibility = View.VISIBLE
-                    binding.rvGroups.animate().alpha(1f).setDuration(250).start()
-                }
-                tvGroupAdapter.submitList(groups)
-                if (groups.isNotEmpty() && tvChannelAdapter.currentList.isNullOrEmpty()) {
-                    showChannelsForGroup(groups.first())
+
+                if (isTvLayout) {
+                    tvGroupAdapter?.submitList(groups)
+                    if (groups.isNotEmpty() && tvChannelAdapter?.currentList.isNullOrEmpty()) {
+                        showChannelsForGroup(groups.first())
+                    }
+                } else {
+                    val sorted = groups.map { g ->
+                        g.copy(channels = viewModel.getFilteredSortedChannels(g.channels))
+                    }
+                    groupAdapter.submitList(sorted)
                 }
             }
         }
@@ -261,10 +261,13 @@ class HomeFragment : Fragment() {
             viewModel.searchResults.collectLatest { results ->
                 if (isSearchActive) {
                     val sorted = viewModel.getFilteredSortedChannels(results)
-                    tvChannelAdapter.submitList(sorted)
+                    if (isTvLayout) tvChannelAdapter?.submitList(sorted)
+                    else searchAdapter.submitList(sorted)
                     binding.tvSearchCount.text = if (sorted.isEmpty()) "Tidak ditemukan"
                         else "${sorted.size} hasil pencarian"
                     binding.tvSearchCount.visibility = View.VISIBLE
+                } else if (!isTvLayout) {
+                    searchAdapter.submitList(emptyList())
                 }
             }
         }
@@ -291,7 +294,6 @@ class HomeFragment : Fragment() {
             putExtra(PlayerActivity.EXTRA_REFERER, channel.referer)
             putExtra(PlayerActivity.EXTRA_CHANNEL_ID, channel.id)
             putExtra(PlayerActivity.EXTRA_MIME_TYPE_HINT, channel.mimeTypeHint)
-            putExtra(PlayerActivity.EXTRA_STREAM_TYPE, channel.streamType)
             putExtra(PlayerActivity.EXTRA_CHANNEL_INDEX, channelIndex)
         })
     }

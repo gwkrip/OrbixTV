@@ -34,11 +34,13 @@ object M3uParser {
         "audio/mpegurl"                              to StreamType.HLS,
         "audio/x-mpegurl"                            to StreamType.HLS,
         "application/dash+xml"                       to StreamType.DASH,
-        "vnd.ms-sstr+xml"                            to StreamType.DASH,
-        "application/vnd.ms-sstr+xml"                to StreamType.DASH,
-        "application/vnd.ms-playready.initiator+xml" to StreamType.DASH,
+        // Microsoft Smooth Streaming — bukan DASH, butuh SsMediaSource
+        "vnd.ms-sstr+xml"                            to StreamType.SMOOTH,
+        "application/vnd.ms-sstr+xml"                to StreamType.SMOOTH,
         "video/rtmp"                                 to StreamType.RTMP,
         "rtmp"                                       to StreamType.RTMP,
+        // Catatan: application/vnd.ms-playready.initiator+xml adalah respons DRM,
+        // bukan format stream — sengaja tidak dimasukkan di sini
     )
 
     val sharedHttpClient: OkHttpClient by lazy {
@@ -204,6 +206,7 @@ object M3uParser {
                 extinfMimeHint.isNotEmpty() ->
                     mimeStringToStreamType(extinfMimeHint)
                 kodiManifestType == "mpd" || kodiManifestType == "dash" -> StreamType.DASH
+                kodiManifestType == "ism"  || kodiManifestType == "ss"  -> StreamType.SMOOTH
                 kodiManifestType == "hls"                               -> StreamType.HLS
                 else -> detectStreamType(streamUrl)
             }
@@ -239,9 +242,6 @@ object M3uParser {
 
     fun mimeStringToStreamType(mime: String): StreamType {
         val lower = mime.lowercase().trim()
-        // Handle nilai mentah dari KODIPROP manifest_type
-        if (lower == "mpd" || lower == "dash") return StreamType.DASH
-        if (lower == "hls")                    return StreamType.HLS
         return MIME_TO_STREAM_TYPE.firstOrNull { (pattern, _) ->
             lower.contains(pattern)
         }?.second ?: detectStreamType(lower)
@@ -256,9 +256,12 @@ object M3uParser {
             lower.contains("/mpd/")             ||
             lower.contains("format=mpd")        ||
             lower.contains("type=dash")         ||
-            lower.contains("ism/manifest")      ||
-            lower.contains(".ism(.mpd)")        ||
             lower.contains("dash+xml")          -> StreamType.DASH
+
+            // Microsoft Smooth Streaming — format ISM, bukan MPD
+            lower.contains("ism/manifest")      ||
+            lower.contains("/ism(")             ||
+            lower.endsWith(".ism")              -> StreamType.SMOOTH
 
             lower.contains(".m3u8")             ||
             lower.contains("/hls/")             ||
@@ -278,6 +281,7 @@ object M3uParser {
     enum class StreamType(val label: String) {
         HLS("HLS"),
         DASH("DASH"),
+        SMOOTH("SMOOTH"),
         RTMP("RTMP"),
         PROGRESSIVE("PROGRESSIVE")
     }

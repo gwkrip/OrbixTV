@@ -79,13 +79,11 @@ class GroupAdapter(
                     if (expandedGroups.contains(grp.name)) {
                         expandedGroups.remove(grp.name)
                         binding.rvChannels.visibility = View.GONE
-                        binding.ivArrow.animate().rotation(0f).setDuration(180).start()
+                        binding.ivArrow.animate().rotation(0f).setDuration(200).start()
                     } else {
                         expandedGroups.add(grp.name)
-                        binding.rvChannels.alpha = 0f
                         binding.rvChannels.visibility = View.VISIBLE
-                        binding.rvChannels.animate().alpha(1f).setDuration(180).start()
-                        binding.ivArrow.animate().rotation(180f).setDuration(180).start()
+                        binding.ivArrow.animate().rotation(180f).setDuration(200).start()
                     }
                 }
             }

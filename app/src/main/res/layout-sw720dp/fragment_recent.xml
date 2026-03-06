@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- TV Recent: Grid 3 kolom, teks besar -->
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -10,136 +11,92 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Header — sama persis dengan phone -->
+        <!-- #4 + #12: Header dengan jumlah riwayat + tombol hapus -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@color/bg_surface">
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginStart="32dp"
+            android:layout_marginEnd="32dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="12dp">
 
-            <LinearLayout
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/tv_recent_title"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingHorizontal="@dimen/content_padding"
-                android:paddingTop="14dp"
-                android:paddingBottom="12dp">
+                android:layout_weight="1"
+                android:text="🕐 Terakhir Ditonton"
+                android:textColor="@color/white"
+                android:textSize="28sp"
+                android:fontFamily="sans-serif-black" />
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
+            <!-- #12: jumlah item -->
+            <TextView
+                android:id="@+id/tv_recent_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:layout_marginEnd="8dp" />
 
-                    <TextView
-                        android:id="@+id/tv_recent_title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/recent_title"
-                        android:textColor="@color/white"
-                        android:textSize="@dimen/text_title"
-                        android:fontFamily="sans-serif-black"/>
-
-                    <TextView
-                        android:id="@+id/tv_recent_count"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11sp"
-                        android:layout_marginTop="1dp"/>
-                </LinearLayout>
-
-                <ImageButton
-                    android:id="@+id/btn_clear_history"
-                    android:layout_width="@dimen/touch_target"
-                    android:layout_height="@dimen/touch_target"
-                    android:src="@drawable/ic_close"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:tint="@color/text_secondary"
-                    android:contentDescription="@string/clear_history"
-                    android:visibility="gone"/>
-            </LinearLayout>
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/divider"/>
+            <!-- #4: Tombol hapus riwayat -->
+            <ImageButton
+                android:id="@+id/btn_clear_history"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_close"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/text_secondary"
+                android:contentDescription="Hapus riwayat" />
         </LinearLayout>
-
-        <!-- Skeleton — pakai TV skeleton (sw720dp) -->
-        <com.facebook.shimmer.ShimmerFrameLayout
-            android:id="@+id/shimmer_recent"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:visibility="visible">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="4dp">
-
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-                <include layout="@layout/item_channel_skeleton"/>
-
-            </LinearLayout>
-        </com.facebook.shimmer.ShimmerFrameLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rv_recent"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:paddingTop="4dp"
-            android:paddingBottom="8dp"
+            android:paddingHorizontal="16dp"
             android:clipToPadding="false"
-            android:scrollbars="none"
             android:focusable="true"
             android:focusableInTouchMode="true"
             android:descendantFocusability="afterDescendants"
             android:defaultFocusHighlightEnabled="false"
-            android:visibility="gone"/>
+            android:visibility="gone" />
     </LinearLayout>
 
-    <!-- Empty state -->
     <LinearLayout
         android:id="@+id/empty_state"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
         android:orientation="vertical"
-        android:gravity="center"
-        android:paddingHorizontal="48dp">
+        android:gravity="center">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="📺"
-            android:textSize="64sp"/>
+            android:textSize="80sp" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="@string/recent_empty_title"
+            android:layout_marginTop="16dp"
+            android:text="Belum ada riwayat"
             android:textColor="@color/text_secondary"
-            android:textSize="18sp"
-            android:fontFamily="sans-serif-medium"
-            android:gravity="center"/>
+            android:textSize="22sp"
+            android:gravity="center" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/recent_empty_hint"
+            android:text="Mulai menonton saluran favoritmu"
             android:textColor="@color/text_hint"
-            android:textSize="14sp"
-            android:gravity="center"
-            android:lineSpacingMultiplier="1.4"/>
+            android:textSize="16sp"
+            android:gravity="center" />
     </LinearLayout>
 
 </FrameLayout>

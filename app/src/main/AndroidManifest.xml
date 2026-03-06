@@ -4,20 +4,17 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- ⑫ Notifikasi (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ⑩ Widget update on boot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!--
-        required="false" agar app bisa diinstall di semua perangkat:
-        Android TV, Google TV, Fire TV, TV box non-Leanback, dll.
-        Jika required="true" maka Play Store memfilter device tanpa Leanback
-        dan tombol "Buka" akan disabled di beberapa launcher.
-    -->
+    <!-- TV: Leanback launcher support -->
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
 
-    <!-- TV tidak punya touchscreen — required="false" wajib ada -->
+    <!-- TV: Touchscreen tidak wajib (TV pakai D-pad/remote) -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -32,45 +29,34 @@
         android:hardwareAccelerated="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="true"
-        android:banner="@drawable/tv_banner">
+        android:banner="@mipmap/ic_launcher">
 
-        <!--
-            SplashActivity: entry point utama.
-            Butuh DUA intent-filter agar muncul di semua TV launcher:
-              1. LEANBACK_LAUNCHER  — Android TV / Google TV resmi
-              2. LAUNCHER           — Fire TV, TV box pihak ketiga, sideload via ADB
-            android:banner di sini override banner level application untuk activity ini.
-        -->
+        <!-- SPLASH: portrait untuk phone, landscape untuk TV -->
         <activity
             android:name=".ui.splash.SplashActivity"
             android:exported="true"
             android:theme="@style/Theme.OrbixTV.Splash"
-            android:screenOrientation="sensorLandscape"
-            android:banner="@drawable/tv_banner">
-
-            <!-- Android TV / Google TV launcher -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-
-            <!--
-                Fire TV, TV box non-Leanback, dan sideload ADB.
-                Tanpa filter ini tombol "Buka" setelah install bisa disabled.
-            -->
+            android:screenOrientation="sensorLandscape">
+            <!-- Phone launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
+            <!-- Android TV Leanback launcher -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
         </activity>
 
+        <!-- MAIN: tidak lock orientation, biarkan sistem tentukan -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout" />
 
+        <!-- PLAYER: landscape, PiP support -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
@@ -81,17 +67,20 @@
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true" />
 
+        <!-- SETTINGS: landscape -->
         <activity
             android:name=".ui.settings.PlaylistSettingsActivity"
             android:exported="false"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/Theme.OrbixTV" />
 
+        <!-- ⑩ Widget -->
         <receiver
             android:name=".widget.OrbixTvWidget"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Update widget setelah reboot agar tidak tampil kosong -->
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
             <meta-data
@@ -99,6 +88,7 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
+        <!-- ⑪ FileProvider untuk share file export favorit -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -108,6 +98,8 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths" />
         </provider>
+
+        <!-- ⑫ WorkManager default provider (auto-init) -->
 
     </application>
 

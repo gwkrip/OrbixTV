@@ -30,9 +30,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManagerProvider
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.MediaSource
 import okhttp3.OkHttpClient
@@ -44,7 +46,6 @@ import com.orbixtv.app.data.M3uParser
 import com.orbixtv.app.data.M3uParser.StreamType
 import com.orbixtv.app.databinding.ActivityPlayerBinding
 import com.orbixtv.app.ui.MainViewModel
-import com.facebook.shimmer.ShimmerFrameLayout
 
 @UnstableApi
 class PlayerActivity : AppCompatActivity() {
@@ -60,8 +61,10 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_CHANNEL_ID     = "channel_id"
         const val EXTRA_CHANNEL_INDEX  = "channel_index"
         const val EXTRA_MIME_TYPE_HINT = "mime_type_hint"
-        const val EXTRA_STREAM_TYPE    = "stream_type"
         private const val TAG = "PlayerActivity"
+
+        private const val DEFAULT_USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
 
         private const val BUFFERING_TIMEOUT_MS       = 12_000L
         private const val BUFFERING_TIMEOUT_KNOWN_MS = 20_000L
@@ -90,7 +93,6 @@ class PlayerActivity : AppCompatActivity() {
     private var referer      = ""
     private var channelId    = ""
     private var mimeTypeHint = ""
-    private var streamTypeHint = ""
 
     private var sleepTimer: CountDownTimer? = null
     private var sleepTimerMinutesLeft = 0
@@ -147,7 +149,6 @@ class PlayerActivity : AppCompatActivity() {
         referer      = intent.getStringExtra(EXTRA_REFERER)        ?: ""
         channelId    = intent.getStringExtra(EXTRA_CHANNEL_ID)     ?: ""
         mimeTypeHint = intent.getStringExtra(EXTRA_MIME_TYPE_HINT) ?: ""
-        streamTypeHint = intent.getStringExtra(EXTRA_STREAM_TYPE)  ?: ""
 
         val intentIndex = intent.getIntExtra(EXTRA_CHANNEL_INDEX, -1)
         allChannels = viewModel.getAllChannels()
@@ -182,20 +183,10 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun resolveStreamType(): M3uParser.StreamType {
-        // Prioritas 1: gunakan streamType yang sudah dihitung parser (termasuk dari KODIPROP)
-        if (streamTypeHint.isNotEmpty()) {
-            when (streamTypeHint.uppercase()) {
-                "DASH" -> return M3uParser.StreamType.DASH
-                "HLS"  -> return M3uParser.StreamType.HLS
-                "RTMP" -> return M3uParser.StreamType.RTMP
-            }
-        }
-        // Prioritas 2: mimeTypeHint dari EXTINF type=""
         if (mimeTypeHint.isNotEmpty()) {
             val t = M3uParser.mimeStringToStreamType(mimeTypeHint)
             if (t != M3uParser.StreamType.PROGRESSIVE) return t
         }
-        // Fallback: deteksi dari URL
         return M3uParser.detectStreamType(channelUrl)
     }
 
@@ -357,9 +348,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun buildDataSourceFactory(): OkHttpDataSource.Factory {
         val factory = OkHttpDataSource.Factory(sharedOkHttpClient)
         factory.setUserAgent(
-            userAgent.ifEmpty {
-                "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/90.0 Mobile Safari/537.36"
-            }
+            userAgent.ifEmpty { DEFAULT_USER_AGENT }
         )
         val headers = mutableMapOf<String, String>()
         if (referer.isNotEmpty()) {
@@ -384,9 +373,20 @@ class PlayerActivity : AppCompatActivity() {
         return when (type) {
             M3uParser.StreamType.DASH -> {
                 val drmSource = tryBuildDrmMediaSource(uri, factory)
-                drmSource ?: DashMediaSource.Factory(factory).createMediaSource(
-                    MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
-                )
+                drmSource ?: DashMediaSource.Factory(factory)
+                    .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                    .createMediaSource(
+                        MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_MPD).build()
+                    )
+            }
+            M3uParser.StreamType.SMOOTH -> {
+                // Microsoft Smooth Streaming — wajib SsMediaSource, bukan DashMediaSource
+                val drmSource = tryBuildSsMediaSource(uri, factory)
+                drmSource ?: SsMediaSource.Factory(factory)
+                    .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                    .createMediaSource(
+                        MediaItem.Builder().setUri(uri).setMimeType(MimeTypes.APPLICATION_SS).build()
+                    )
             }
             M3uParser.StreamType.HLS -> {
                 // HLS dengan Widevine DRM (mis. fairplay fallback ke widevine di Android)
@@ -423,6 +423,89 @@ class PlayerActivity : AppCompatActivity() {
         return builder.build()
     }
 
+    /**
+     * Fix #4: Buat DrmSessionManagerProvider yang menggunakan OkHttpClient
+     * dengan User-Agent kustom, sehingga request ke license server DRM
+     * (Widevine/ClearKey) ikut mengirim User-Agent yang benar.
+     */
+    private fun buildDrmSessionManagerProvider(): DefaultDrmSessionManagerProvider {
+        val drmOkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .addInterceptor { chain ->
+                val req = chain.request().newBuilder()
+                    .header("User-Agent", userAgent.ifEmpty { DEFAULT_USER_AGENT })
+                    .build()
+                chain.proceed(req)
+            }
+            .build()
+        return DefaultDrmSessionManagerProvider().also { provider ->
+            provider.setDrmHttpDataSourceFactory(OkHttpDataSource.Factory(drmOkHttpClient))
+        }
+    }
+
+    /**
+     * Fix #1: Buat MediaSource untuk Microsoft Smooth Streaming via SsMediaSource.
+     * Jika ada DRM (Widevine/PlayReady), dikonfigurasi di sini.
+     */
+    private fun tryBuildSsMediaSource(
+        uri: Uri,
+        factory: OkHttpDataSource.Factory
+    ): MediaSource? {
+        if (licenseKey.isEmpty()) return null
+
+        val lt = licenseType.lowercase().trim()
+        return try {
+            when {
+                lt.contains("widevine") ||
+                lt == "edef8ba9-79d6-4ace-a3c8-27dcd51d21ed" -> {
+                    val parts          = licenseKey.split("|")
+                    val licenseUrl     = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    Log.d(TAG, "SS+Widevine: url=$licenseUrl")
+                    SsMediaSource.Factory(factory)
+                        .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                        .createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setMimeType(MimeTypes.APPLICATION_SS)
+                                .setDrmConfiguration(
+                                    MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                                        .setLicenseUri(licenseUrl)
+                                        .setLicenseRequestHeaders(requestHeaders)
+                                        .build()
+                                ).build()
+                        )
+                }
+                lt.contains("playready") ||
+                lt == "9a04f079-9840-4286-ab92-e65be0885f95" -> {
+                    val parts          = licenseKey.split("|")
+                    val licenseUrl     = parts[0].trim()
+                    val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
+                    Log.d(TAG, "SS+PlayReady: url=$licenseUrl")
+                    SsMediaSource.Factory(factory)
+                        .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                        .createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setMimeType(MimeTypes.APPLICATION_SS)
+                                .setDrmConfiguration(
+                                    MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
+                                        .setLicenseUri(licenseUrl)
+                                        .setLicenseRequestHeaders(requestHeaders)
+                                        .build()
+                                ).build()
+                        )
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "SS DRM build failed: ${e.message}", e)
+            null
+        }
+    }
+
     private fun tryBuildDrmMediaSource(
         uri: Uri,
         factory: OkHttpDataSource.Factory
@@ -441,16 +524,18 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     val inlineJson = "data:application/json;base64," + buildClearKeyJson(keys)
                     Log.d(TAG, "ClearKey: ${keys.size} key pair(s), inline JSON ready")
-                    DashMediaSource.Factory(factory).createMediaSource(
-                        MediaItem.Builder()
-                            .setUri(uri)
-                            .setMimeType(MimeTypes.APPLICATION_MPD)
-                            .setDrmConfiguration(
-                                MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
-                                    .setLicenseUri(inlineJson)
-                                    .build()
-                            ).build()
-                    )
+                    DashMediaSource.Factory(factory)
+                        .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                        .createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setMimeType(MimeTypes.APPLICATION_MPD)
+                                .setDrmConfiguration(
+                                    MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
+                                        .setLicenseUri(inlineJson)
+                                        .build()
+                                ).build()
+                        )
                 }
 
                 lt.contains("widevine") ||
@@ -459,17 +544,19 @@ class PlayerActivity : AppCompatActivity() {
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
                     Log.d(TAG, "Widevine: url=$licenseUrl headers=${requestHeaders.keys}")
-                    DashMediaSource.Factory(factory).createMediaSource(
-                        MediaItem.Builder()
-                            .setUri(uri)
-                            .setMimeType(MimeTypes.APPLICATION_MPD)
-                            .setDrmConfiguration(
-                                MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
-                                    .setLicenseUri(licenseUrl)
-                                    .setLicenseRequestHeaders(requestHeaders)
-                                    .build()
-                            ).build()
-                    )
+                    DashMediaSource.Factory(factory)
+                        .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                        .createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setMimeType(MimeTypes.APPLICATION_MPD)
+                                .setDrmConfiguration(
+                                    MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                                        .setLicenseUri(licenseUrl)
+                                        .setLicenseRequestHeaders(requestHeaders)
+                                        .build()
+                                ).build()
+                        )
                 }
 
                 lt.contains("playready") ||
@@ -478,17 +565,19 @@ class PlayerActivity : AppCompatActivity() {
                     val licenseUrl     = parts[0].trim()
                     val requestHeaders = if (parts.size > 1) parseHeaderString(parts[1]) else emptyMap()
                     Log.d(TAG, "PlayReady: url=$licenseUrl")
-                    DashMediaSource.Factory(factory).createMediaSource(
-                        MediaItem.Builder()
-                            .setUri(uri)
-                            .setMimeType(MimeTypes.APPLICATION_MPD)
-                            .setDrmConfiguration(
-                                MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
-                                    .setLicenseUri(licenseUrl)
-                                    .setLicenseRequestHeaders(requestHeaders)
-                                    .build()
-                            ).build()
-                    )
+                    DashMediaSource.Factory(factory)
+                        .setDrmSessionManagerProvider(buildDrmSessionManagerProvider())
+                        .createMediaSource(
+                            MediaItem.Builder()
+                                .setUri(uri)
+                                .setMimeType(MimeTypes.APPLICATION_MPD)
+                                .setDrmConfiguration(
+                                    MediaItem.DrmConfiguration.Builder(C.PLAYREADY_UUID)
+                                        .setLicenseUri(licenseUrl)
+                                        .setLicenseRequestHeaders(requestHeaders)
+                                        .build()
+                                ).build()
+                        )
                 }
 
                 else -> {
@@ -589,8 +678,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLiveBadge() {
+        // Fix #5: DASH live stream juga perlu menampilkan badge LIVE
         val live = currentChannelIndex >= 0 && allChannels.isNotEmpty() &&
-            allChannels[currentChannelIndex].streamType.let { it == "HLS" || it == "RTMP" }
+            allChannels[currentChannelIndex].streamType.let {
+                it == "HLS" || it == "RTMP" || it == "DASH"
+            }
         binding.playerView.findViewById<android.widget.TextView?>(R.id.tv_live_badge)
             ?.visibility = if (live) View.VISIBLE else View.GONE
     }
@@ -603,22 +695,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showLoading(show: Boolean) {
-        if (show) {
-            binding.shimmerPlayer.visibility = View.VISIBLE
-            binding.shimmerPlayer.startShimmer()
-        } else {
-            binding.shimmerPlayer.stopShimmer()
-            binding.shimmerPlayer.animate()
-                .alpha(0f)
-                .setDuration(300)
-                .withEndAction {
-                    // Guard: activity bisa saja sudah di-destroy saat animasi selesai
-                    if (!isFinishing && !isDestroyed) {
-                        binding.shimmerPlayer.visibility = View.GONE
-                        binding.shimmerPlayer.alpha = 1f
-                    }
-                }.start()
-        }
+        binding.progressBar.visibility = if (show) View.VISIBLE else View.GONE
     }
 
     private fun showError(message: String?) {
@@ -676,7 +753,6 @@ class PlayerActivity : AppCompatActivity() {
         userAgent    = next.userAgent; licenseType = next.licenseType
         licenseKey   = next.licenseKey; referer  = next.referer
         channelId    = next.id;    mimeTypeHint = next.mimeTypeHint
-        streamTypeHint = next.streamType
         retryCount   = 0
 
         viewModel.onChannelWatched(channelId)
@@ -730,7 +806,8 @@ class PlayerActivity : AppCompatActivity() {
         preBufferIndex = nextIndex
         try {
             val factory = OkHttpDataSource.Factory(sharedOkHttpClient).apply {
-                if (next.userAgent.isNotEmpty()) setUserAgent(next.userAgent)
+                // Fix #3: Selalu set User-Agent dengan fallback, bukan hanya jika tidak kosong
+                setUserAgent(next.userAgent.ifEmpty { DEFAULT_USER_AGENT })
             }
             val uri = Uri.parse(next.url)
 
@@ -740,6 +817,14 @@ class PlayerActivity : AppCompatActivity() {
                         MediaItem.Builder()
                             .setUri(uri)
                             .setMimeType(MimeTypes.APPLICATION_MPD)
+                            .build()
+                    )
+                // Fix #1: Pre-buffer Smooth Streaming pakai SsMediaSource
+                "SMOOTH" -> androidx.media3.exoplayer.smoothstreaming.SsMediaSource.Factory(factory)
+                    .createMediaSource(
+                        MediaItem.Builder()
+                            .setUri(uri)
+                            .setMimeType(MimeTypes.APPLICATION_SS)
                             .build()
                     )
                 else ->

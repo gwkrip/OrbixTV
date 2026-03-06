@@ -48,13 +48,12 @@
             android:tint="#CCFFFFFF"
             android:contentDescription="@string/next_channel" />
 
-        <!-- LIVE badge — styled dengan border merah.
-             layout_weight="1" mengisi ruang tengah. Saat gone, ruang diambil alih
-             oleh Space di bawah ini sehingga tombol fullscreen tetap di kanan. -->
+        <!-- LIVE badge — styled dengan border merah -->
         <TextView
             android:id="@+id/tv_live_badge"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:layout_marginStart="14dp"
             android:text="● LIVE"
             android:textColor="#FF5555"
@@ -67,8 +66,8 @@
             android:maxWidth="72dp"
             android:visibility="gone" />
 
-        <!-- Spacer tunggal — selalu mengisi sisa ruang tengah -->
-        <Space
+        <!-- Spacer saat LIVE hidden -->
+        <View
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />

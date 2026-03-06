@@ -1,34 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Dimensi untuk layar >= 720dp (tablet & Android TV) -->
+<!-- Prinsip 10-foot UI: teks lebih besar, touch target lebih besar -->
 <resources>
-    <!-- TV/Tablet: 10-foot UI — teks lebih besar, tap target lebih besar -->
-    <dimen name="text_title">26sp</dimen>
-    <dimen name="text_channel_name">16sp</dimen>
+    <!-- Text sizes -->
+    <dimen name="text_title">28sp</dimen>
+    <dimen name="text_channel_name">18sp</dimen>
     <dimen name="text_group_name">14sp</dimen>
-    <dimen name="text_badge">11sp</dimen>
-    <dimen name="text_secondary">13sp</dimen>
-    <dimen name="text_hint">12sp</dimen>
+    <dimen name="text_badge">12sp</dimen>
+    <dimen name="text_secondary">14sp</dimen>
+    <dimen name="text_hint">13sp</dimen>
 
-    <!-- Channel item TV -->
-    <dimen name="channel_logo_size">60dp</dimen>
-    <dimen name="channel_item_padding_h">18dp</dimen>
-    <dimen name="channel_item_padding_v">14dp</dimen>
-    <dimen name="channel_item_margin_h">12dp</dimen>
-    <dimen name="channel_item_margin_v">4dp</dimen>
-    <dimen name="channel_card_radius">14dp</dimen>
-
-    <!-- Group item -->
-    <dimen name="group_header_height">52dp</dimen>
+    <!-- Channel item -->
+    <dimen name="channel_logo_size">72dp</dimen>
+    <dimen name="channel_item_padding_h">20dp</dimen>
+    <dimen name="channel_item_padding_v">16dp</dimen>
+    <dimen name="channel_item_margin_h">16dp</dimen>
+    <dimen name="channel_item_margin_v">6dp</dimen>
 
     <!-- Nav -->
-    <dimen name="nav_icon_size">26dp</dimen>
-    <dimen name="bottom_nav_height">72dp</dimen>
+    <dimen name="nav_icon_size">28dp</dimen>
 
-    <!-- Spacing -->
+    <!-- General spacing -->
     <dimen name="content_padding">24dp</dimen>
-    <dimen name="section_margin">12dp</dimen>
-    <dimen name="card_radius">14dp</dimen>
-
-    <!-- Touch targets -->
-    <dimen name="touch_target">52dp</dimen>
-    <dimen name="icon_btn_size">44dp</dimen>
+    <dimen name="section_margin">16dp</dimen>
 </resources>
